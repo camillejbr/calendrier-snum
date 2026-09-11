@@ -135,10 +135,11 @@ async function sendMail(to: string, subject: string, intro: string, bodyHtml: st
       textContent: textBody,
     }),
   });
+  const bodyText = await res.text();
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Brevo error ${res.status}: ${errText}`);
+    throw new Error(`Brevo error ${res.status}: ${bodyText}`);
   }
+  return bodyText;
 }
 
 async function usersWithPreference(column: "weekly_digest" | "on_publish" | "on_join") {
