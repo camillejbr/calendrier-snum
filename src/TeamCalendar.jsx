@@ -57,6 +57,18 @@ function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// Emails follow prenom.nom@culture.gouv.fr or prenom.nom.ext@culture.gouv.fr
+// (the optional 3rd segment disambiguates homonyms) — display "Prénom N."
+function displayNameFromEmail(email) {
+  const local = email.split("@")[0];
+  const [prenom, nom] = local.split(".");
+  const formattedPrenom = (prenom || local)
+    .split("-")
+    .map(capitalize)
+    .join("-");
+  return nom ? `${formattedPrenom} ${nom.charAt(0).toUpperCase()}.` : formattedPrenom;
+}
+
 function formatDateLabel(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
   const today = new Date();
@@ -70,7 +82,7 @@ function formatDateLabel(dateStr) {
 }
 
 export default function TeamCalendar({ user, onSignOut }) {
-  const profileName = user.email.split("@")[0];
+  const profileName = displayNameFromEmail(user.email);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
