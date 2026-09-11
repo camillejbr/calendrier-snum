@@ -109,6 +109,10 @@ export default function Auth() {
     e.preventDefault();
     setError("");
     setMessage("");
+    if (!email.trim().toLowerCase().endsWith("@culture.gouv.fr")) {
+      setError("L'inscription est réservée aux adresses @culture.gouv.fr.");
+      return;
+    }
     if (password.length < 6) {
       setError("Le mot de passe doit faire au moins 6 caractères.");
       return;
@@ -125,7 +129,13 @@ export default function Auth() {
     });
     setBusy(false);
     if (error) {
-      setError(error.message === "User already registered" ? "Un compte existe déjà avec cet email." : error.message);
+      if (error.message === "User already registered") {
+        setError("Un compte existe déjà avec cet email.");
+      } else if (error.message === "Database error saving new user") {
+        setError("L'inscription est réservée aux adresses @culture.gouv.fr.");
+      } else {
+        setError(error.message);
+      }
       return;
     }
     switchMode("login");
@@ -261,6 +271,7 @@ export default function Auth() {
               id="signup-email"
               type="email"
               autoComplete="email"
+              placeholder="prenom.nom@culture.gouv.fr"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

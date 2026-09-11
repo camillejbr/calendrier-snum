@@ -70,10 +70,8 @@ function formatDateLabel(dateStr) {
 }
 
 export default function TeamCalendar({ user, onSignOut }) {
-  const profileName = user.user_metadata?.display_name || null;
+  const profileName = user.email.split("@")[0];
   const [loading, setLoading] = useState(true);
-  const [nameDraft, setNameDraft] = useState("");
-  const [knownNames, setKnownNames] = useState([]);
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -104,11 +102,6 @@ export default function TeamCalendar({ user, onSignOut }) {
   useEffect(() => {
     async function load() {
       await loadEvents();
-      const { data, error } = await supabase
-        .from("known_names")
-        .select("name")
-        .order("name", { ascending: true });
-      if (!error && data) setKnownNames(data.map((r) => r.name));
       setLoading(false);
     }
     load();
@@ -124,25 +117,6 @@ export default function TeamCalendar({ user, onSignOut }) {
       supabase.removeChannel(channel);
     };
   }, [loadEvents]);
-
-  async function confirmName() {
-    const clean = nameDraft.trim();
-    if (!clean) return;
-    const { error } = await supabase.auth.updateUser({ data: { display_name: clean } });
-    if (error) {
-      setSaveError("Impossible d'enregistrer ton prénom. Réessaie.");
-      return;
-    }
-    setSaveError("");
-    if (!knownNames.some((n) => n.toLowerCase() === clean.toLowerCase())) {
-      const { error: namesErr } = await supabase
-        .from("known_names")
-        .upsert({ name: clean }, { onConflict: "name", ignoreDuplicates: true });
-      if (!namesErr) {
-        setKnownNames((names) => [...names, clean].sort((a, b) => a.localeCompare(b)));
-      }
-    }
-  }
 
   function updateForm(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -223,85 +197,6 @@ export default function TeamCalendar({ user, onSignOut }) {
     return (
       <div style={{ fontFamily: "'Inter', sans-serif", padding: "3rem", textAlign: "center", color: "#6B6862" }}>
         Chargement de l'agenda…
-      </div>
-    );
-  }
-
-  if (!profileName) {
-    return (
-      <div
-        style={{
-          fontFamily: "'Inter', sans-serif",
-          background: "#F7F3EC",
-          minHeight: "480px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "2rem",
-        }}
-      >
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600&display=swap');`}</style>
-        <div style={{ maxWidth: 360, width: "100%", textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }} aria-hidden="true">🗓️</div>
-          <h1
-            style={{
-              fontFamily: "'Fraunces', serif",
-              fontWeight: 600,
-              fontSize: 28,
-              color: "#2B2A28",
-              margin: "0 0 8px",
-            }}
-          >
-            L'agenda du SNUM
-          </h1>
-          <p style={{ color: "#6B6862", fontSize: 15, margin: "0 0 24px" }}>
-            Dis-nous qui tu es pour créer et rejoindre des événements.
-          </p>
-          <label htmlFor="name-draft" style={{ display: "block", textAlign: "left", fontSize: 13, fontWeight: 500, color: "#4A4740", marginBottom: 4 }}>
-            Ton prénom
-          </label>
-          <input
-            id="name-draft"
-            type="text"
-            autoComplete="given-name"
-            list="known-names"
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && confirmName()}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "10px 14px",
-              fontSize: 15,
-              border: "1px solid #D8D3C6",
-              borderRadius: 6,
-              marginBottom: 12,
-              fontFamily: "'Inter', sans-serif",
-            }}
-          />
-          <datalist id="known-names">
-            {knownNames.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
-          <button
-            onClick={confirmName}
-            style={{
-              width: "100%",
-              padding: "10px 14px",
-              fontSize: 15,
-              fontWeight: 500,
-              background: "#2B2A28",
-              color: "#F7F3EC",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontFamily: "'Inter', sans-serif",
-            }}
-          >
-            Entrer dans l'agenda
-          </button>
-        </div>
       </div>
     );
   }
