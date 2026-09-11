@@ -476,7 +476,9 @@ export default function TeamCalendar({ user, onSignOut }) {
             onClick={() => setShowNotifSettings(true)}
             aria-haspopup="dialog"
             style={{
-              padding: "10px 14px",
+              height: 40,
+              boxSizing: "border-box",
+              padding: "0 14px",
               fontSize: 14,
               fontWeight: 500,
               background: "#FFFFFF",
@@ -493,7 +495,9 @@ export default function TeamCalendar({ user, onSignOut }) {
             onClick={() => setShowForm((s) => !s)}
             aria-expanded={showForm}
             style={{
-              padding: "10px 18px",
+              height: 40,
+              boxSizing: "border-box",
+              padding: "0 18px",
               fontSize: 14,
               fontWeight: 500,
               background: showForm ? "#EAE6DA" : "#2B2A28",
