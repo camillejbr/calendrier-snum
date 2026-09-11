@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "./supabaseClient.js";
 
 const TYPES = {
   verre: { label: "Verre", icon: "🍷", color: "#9C3B3B", bg: "#F7ECEC" },
@@ -7,13 +8,23 @@ const TYPES = {
   repas: { label: "Repas", icon: "🍽️", color: "#C97A2B", bg: "#FBF0E3" },
 };
 
-const EVENTS_KEY = "team-cal:events";
 const PROFILE_KEY = "team-cal:profile";
-const NAMES_KEY = "team-cal:names";
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function rowToEvent(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    type: row.type,
+    date: row.date,
+    time: row.time,
+    location: row.location || "",
+    description: row.description || "",
+    maxAttendees: row.max_attendees,
+    price: row.price,
+    host: row.host,
+    attendees: row.attendees || [],
+  };
 }
 
 function pad2(n) {
@@ -82,48 +93,45 @@ export default function TeamCalendar() {
   });
   const [formErr, setFormErr] = useState("");
 
+  const loadEvents = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .order("date", { ascending: true })
+      .order("time", { ascending: true });
+    if (!error && data) setEvents(data.map(rowToEvent));
+  }, []);
+
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PROFILE_KEY);
+      if (raw) setProfile(JSON.parse(raw));
+    } catch (e) {
+      // no profile yet
+    }
+
     async function load() {
-      try {
-        const p = await window.storage.get(PROFILE_KEY, false);
-        if (p && p.value) {
-          const parsed = JSON.parse(p.value);
-          setProfile(parsed);
-        }
-      } catch (e) {
-        // no profile yet
-      }
-      try {
-        const e = await window.storage.get(EVENTS_KEY, true);
-        if (e && e.value) {
-          setEvents(JSON.parse(e.value));
-        }
-      } catch (e) {
-        setEvents([]);
-      }
-      try {
-        const n = await window.storage.get(NAMES_KEY, true);
-        if (n && n.value) {
-          setKnownNames(JSON.parse(n.value));
-        }
-      } catch (e) {
-        setKnownNames([]);
-      }
+      await loadEvents();
+      const { data, error } = await supabase
+        .from("known_names")
+        .select("name")
+        .order("name", { ascending: true });
+      if (!error && data) setKnownNames(data.map((r) => r.name));
       setLoading(false);
     }
     load();
-  }, []);
 
-  async function saveEvents(next) {
-    setEvents(next);
-    try {
-      const res = await window.storage.set(EVENTS_KEY, JSON.stringify(next), true);
-      if (!res) setSaveError("La sauvegarde n'a pas fonctionné. Réessaie.");
-      else setSaveError("");
-    } catch (e) {
-      setSaveError("La sauvegarde n'a pas fonctionné. Réessaie.");
-    }
-  }
+    const channel = supabase
+      .channel("events-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => {
+        loadEvents();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadEvents]);
 
   async function confirmName() {
     const clean = nameDraft.trim();
@@ -131,17 +139,16 @@ export default function TeamCalendar() {
     const p = { name: clean };
     setProfile(p);
     try {
-      await window.storage.set(PROFILE_KEY, JSON.stringify(p), false);
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
     } catch (e) {
       // still let them use the app this session
     }
     if (!knownNames.some((n) => n.toLowerCase() === clean.toLowerCase())) {
-      const nextNames = [...knownNames, clean].sort((a, b) => a.localeCompare(b));
-      setKnownNames(nextNames);
-      try {
-        await window.storage.set(NAMES_KEY, JSON.stringify(nextNames), true);
-      } catch (e) {
-        // list update failed silently, not critical
+      const { error } = await supabase
+        .from("known_names")
+        .upsert({ name: clean }, { onConflict: "name", ignoreDuplicates: true });
+      if (!error) {
+        setKnownNames((names) => [...names, clean].sort((a, b) => a.localeCompare(b)));
       }
     }
   }
@@ -150,49 +157,61 @@ export default function TeamCalendar() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  function addEvent() {
+  async function addEvent() {
     if (!form.title.trim() || !form.date || !form.time) {
       setFormErr("Ajoute au moins un titre, une date et une heure.");
       return;
     }
-    const newEvent = {
-      id: uid(),
+    const { error } = await supabase.from("events").insert({
       title: form.title.trim(),
       type: form.type,
       date: form.date,
       time: form.time,
-      location: form.location.trim(),
-      description: form.description.trim(),
-      maxAttendees: form.maxAttendees ? parseInt(form.maxAttendees, 10) : null,
+      location: form.location.trim() || null,
+      description: form.description.trim() || null,
+      max_attendees: form.maxAttendees ? parseInt(form.maxAttendees, 10) : null,
       price: form.price.trim() ? form.price.trim() : null,
       host: profile.name,
       attendees: [profile.name],
-    };
-    saveEvents([...events, newEvent]);
+    });
+    if (error) {
+      setSaveError("La création n'a pas fonctionné. Réessaie.");
+      return;
+    }
+    setSaveError("");
     setForm({ title: "", type: "verre", date: "", time: "", location: "", description: "", maxAttendees: "", price: "" });
     setFormErr("");
     setShowForm(false);
+    loadEvents();
   }
 
-  function toggleAttendance(eventId) {
-    const next = events.map((ev) => {
-      if (ev.id !== eventId) return ev;
-      const already = ev.attendees.includes(profile.name);
-      if (!already && ev.maxAttendees && ev.attendees.length >= ev.maxAttendees) {
-        return ev; // full, no change
-      }
-      return {
-        ...ev,
-        attendees: already
-          ? ev.attendees.filter((n) => n !== profile.name)
-          : [...ev.attendees, profile.name],
-      };
-    });
-    saveEvents(next);
+  async function toggleAttendance(eventId) {
+    const ev = events.find((e) => e.id === eventId);
+    if (!ev) return;
+    const already = ev.attendees.includes(profile.name);
+    if (!already && ev.maxAttendees && ev.attendees.length >= ev.maxAttendees) {
+      return; // full, no change
+    }
+    const nextAttendees = already
+      ? ev.attendees.filter((n) => n !== profile.name)
+      : [...ev.attendees, profile.name];
+    const { error } = await supabase.from("events").update({ attendees: nextAttendees }).eq("id", eventId);
+    if (error) {
+      setSaveError("La sauvegarde n'a pas fonctionné. Réessaie.");
+      return;
+    }
+    setSaveError("");
+    loadEvents();
   }
 
-  function deleteEvent(eventId) {
-    saveEvents(events.filter((ev) => ev.id !== eventId));
+  async function deleteEvent(eventId) {
+    const { error } = await supabase.from("events").delete().eq("id", eventId);
+    if (error) {
+      setSaveError("La suppression n'a pas fonctionné. Réessaie.");
+      return;
+    }
+    setSaveError("");
+    loadEvents();
   }
 
   function goToday() {
