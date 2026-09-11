@@ -256,7 +256,7 @@ export default function Auth() {
 
         {mode === "confirm" && (
           <p style={{ color: "#6B6862", fontSize: 15, margin: "0 0 24px" }}>
-            Un code à 6 chiffres vient d'être envoyé à <strong style={{ color: "#2B2A28" }}>{email}</strong>.
+            Un code de confirmation vient d'être envoyé à <strong style={{ color: "#2B2A28" }}>{email}</strong>.
           </p>
         )}
 
@@ -359,14 +359,14 @@ export default function Auth() {
 
         {mode === "confirm" && (
           <form onSubmit={handleConfirmCode}>
-            <label htmlFor="confirm-code" style={labelStyle}>Code à 6 chiffres</label>
+            <label htmlFor="confirm-code" style={labelStyle}>Code de confirmation</label>
             <input
               id="confirm-code"
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
               autoComplete="one-time-code"
-              maxLength={6}
+              maxLength={12}
               required
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
