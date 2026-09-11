@@ -155,6 +155,8 @@ Une seule fonction (`supabase/functions/notify/index.ts`) gère les 3 types de n
 
 Les emails de Supabase Auth (confirmation d'inscription, réinitialisation de mot de passe) passent par un **SMTP custom configuré directement dans Supabase** (Authentication → Settings → SMTP), et non par l'Edge Function / Brevo. Ce SMTP utilise Gmail (`camillejbr@gmail.com` + mot de passe d'application). Deux systèmes d'envoi d'email coexistent donc dans ce projet, pour deux besoins différents.
 
+Les templates HTML (mêmes codes couleur/police que le reste de l'app) sont dans `email-templates/` : `confirm-signup.html` (avec `{{ .Token }}`, **sans** lien cliquable — voir la note sur le scanner de sécurité plus haut) et `reset-password.html` (avec un bouton `{{ .ConfirmationURL }}`). Ils doivent être collés manuellement dans le dashboard Supabase (Authentication → Email Templates) — il n'y a pas d'API pour les pousser automatiquement, donc **ce dossier peut se désynchroniser** de ce qui est réellement configuré si quelqu'un modifie un template directement dans le dashboard sans reporter le changement ici.
+
 ## Limites connues / dette technique
 
 - `known_names` : table non utilisée, à supprimer si confirmé inutile.
