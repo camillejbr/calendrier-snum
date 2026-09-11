@@ -91,6 +91,7 @@ export default function TeamCalendar({ user, onSignOut }) {
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveError, setSaveError] = useState("");
   const [view, setView] = useState("liste"); // liste | semaine | mois
   const [refDate, setRefDate] = useState(() => new Date());
@@ -190,6 +191,7 @@ export default function TeamCalendar({ user, onSignOut }) {
 
   async function deleteEvent(eventId) {
     const { error } = await supabase.from("events").delete().eq("id", eventId);
+    setConfirmDeleteId(null);
     if (error) {
       setSaveError("La suppression n'a pas fonctionné. Réessaie.");
       return;
@@ -356,21 +358,58 @@ export default function TeamCalendar({ user, onSignOut }) {
             {isFull ? "Complet" : going ? "Je me désiste" : "Je viens"}
           </button>
           {(isHost || isAdmin) && (
-            <button
-              onClick={() => deleteEvent(ev.id)}
-              aria-label={`Supprimer l'événement ${ev.title}`}
-              style={{
-                padding: "8px 10px",
-                fontSize: 13,
-                background: "transparent",
-                color: "#6B6862",
-                border: "1px solid #D8D3C6",
-                borderRadius: 6,
-                cursor: "pointer",
-              }}
-            >
-              <span aria-hidden="true">✕</span>
-            </button>
+            confirmDeleteId === ev.id ? (
+              <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: "#9C3B3B" }}>Supprimer ?</span>
+                <button
+                  onClick={() => deleteEvent(ev.id)}
+                  style={{
+                    padding: "7px 12px",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    background: "#9C3B3B",
+                    color: "#FFFFFF",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  Oui
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  style={{
+                    padding: "7px 12px",
+                    fontSize: 12,
+                    background: "transparent",
+                    color: "#6B6862",
+                    border: "1px solid #D8D3C6",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  Annuler
+                </button>
+              </span>
+            ) : (
+              <button
+                onClick={() => setConfirmDeleteId(ev.id)}
+                aria-label={`Supprimer l'événement ${ev.title}`}
+                style={{
+                  padding: "8px 10px",
+                  fontSize: 13,
+                  background: "transparent",
+                  color: "#6B6862",
+                  border: "1px solid #D8D3C6",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                <span aria-hidden="true">✕</span>
+              </button>
+            )
           )}
         </div>
       </div>
