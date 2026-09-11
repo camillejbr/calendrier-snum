@@ -8,9 +8,10 @@ const wrapStyle = {
   background: "#F7F3EC",
   minHeight: "100dvh",
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-start",
   justifyContent: "center",
   padding: "2rem",
+  paddingTop: "12vh",
   boxSizing: "border-box",
 };
 
