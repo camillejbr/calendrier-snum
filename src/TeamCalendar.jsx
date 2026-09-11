@@ -8,7 +8,6 @@ const TYPES = {
   repas: { label: "Repas", icon: "🍽️", color: "#C97A2B", bg: "#FBF0E3" },
 };
 
-const PROFILE_KEY = "team-cal:profile";
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 function rowToEvent(row) {
@@ -70,9 +69,9 @@ function formatDateLabel(dateStr) {
   return capitalize(weekday) + " " + full;
 }
 
-export default function TeamCalendar() {
+export default function TeamCalendar({ user, onSignOut }) {
+  const profileName = user.user_metadata?.display_name || null;
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState(null);
   const [nameDraft, setNameDraft] = useState("");
   const [knownNames, setKnownNames] = useState([]);
   const [events, setEvents] = useState([]);
@@ -103,13 +102,6 @@ export default function TeamCalendar() {
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PROFILE_KEY);
-      if (raw) setProfile(JSON.parse(raw));
-    } catch (e) {
-      // no profile yet
-    }
-
     async function load() {
       await loadEvents();
       const { data, error } = await supabase
@@ -136,18 +128,17 @@ export default function TeamCalendar() {
   async function confirmName() {
     const clean = nameDraft.trim();
     if (!clean) return;
-    const p = { name: clean };
-    setProfile(p);
-    try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
-    } catch (e) {
-      // still let them use the app this session
+    const { error } = await supabase.auth.updateUser({ data: { display_name: clean } });
+    if (error) {
+      setSaveError("Impossible d'enregistrer ton prénom. Réessaie.");
+      return;
     }
+    setSaveError("");
     if (!knownNames.some((n) => n.toLowerCase() === clean.toLowerCase())) {
-      const { error } = await supabase
+      const { error: namesErr } = await supabase
         .from("known_names")
         .upsert({ name: clean }, { onConflict: "name", ignoreDuplicates: true });
-      if (!error) {
+      if (!namesErr) {
         setKnownNames((names) => [...names, clean].sort((a, b) => a.localeCompare(b)));
       }
     }
@@ -171,8 +162,8 @@ export default function TeamCalendar() {
       description: form.description.trim() || null,
       max_attendees: form.maxAttendees ? parseInt(form.maxAttendees, 10) : null,
       price: form.price.trim() ? form.price.trim() : null,
-      host: profile.name,
-      attendees: [profile.name],
+      host: profileName,
+      attendees: [profileName],
     });
     if (error) {
       setSaveError("La création n'a pas fonctionné. Réessaie.");
@@ -188,13 +179,13 @@ export default function TeamCalendar() {
   async function toggleAttendance(eventId) {
     const ev = events.find((e) => e.id === eventId);
     if (!ev) return;
-    const already = ev.attendees.includes(profile.name);
+    const already = ev.attendees.includes(profileName);
     if (!already && ev.maxAttendees && ev.attendees.length >= ev.maxAttendees) {
       return; // full, no change
     }
     const nextAttendees = already
-      ? ev.attendees.filter((n) => n !== profile.name)
-      : [...ev.attendees, profile.name];
+      ? ev.attendees.filter((n) => n !== profileName)
+      : [...ev.attendees, profileName];
     const { error } = await supabase.from("events").update({ attendees: nextAttendees }).eq("id", eventId);
     if (error) {
       setSaveError("La sauvegarde n'a pas fonctionné. Réessaie.");
@@ -236,7 +227,7 @@ export default function TeamCalendar() {
     );
   }
 
-  if (!profile) {
+  if (!profileName) {
     return (
       <div
         style={{
@@ -343,8 +334,8 @@ export default function TeamCalendar() {
 
   function renderEventCard(ev) {
     const t = TYPES[ev.type] || TYPES.verre;
-    const going = ev.attendees.includes(profile.name);
-    const isHost = ev.host === profile.name;
+    const going = ev.attendees.includes(profileName);
+    const isHost = ev.host === profileName;
     const isFull = ev.maxAttendees && ev.attendees.length >= ev.maxAttendees && !going;
     return (
       <div
@@ -460,7 +451,7 @@ export default function TeamCalendar() {
 
   function renderCompactCard(ev) {
     const t = TYPES[ev.type] || TYPES.verre;
-    const going = ev.attendees.includes(profile.name);
+    const going = ev.attendees.includes(profileName);
     const isFull = ev.maxAttendees && ev.attendees.length >= ev.maxAttendees && !going;
     return (
       <div
@@ -537,7 +528,23 @@ export default function TeamCalendar() {
             L'agenda du SNUM
           </h1>
           <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>
-            Connecté comme <strong style={{ color: "#2B2A28" }}>{profile.name}</strong>
+            Connecté comme <strong style={{ color: "#2B2A28" }}>{profileName}</strong>
+            {" · "}
+            <button
+              onClick={onSignOut}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#6B6862",
+                fontSize: 13,
+                cursor: "pointer",
+                textDecoration: "underline",
+                fontFamily: "'Inter', sans-serif",
+                padding: 0,
+              }}
+            >
+              Se déconnecter
+            </button>
           </p>
         </div>
         <button
