@@ -151,7 +151,7 @@ export default function Auth() {
     const { error } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token: code.trim(),
-      type: "signup",
+      type: "email",
     });
     setBusy(false);
     if (error) {
