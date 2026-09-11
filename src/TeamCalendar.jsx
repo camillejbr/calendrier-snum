@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabaseClient.js";
+import NotificationSettings from "./NotificationSettings.jsx";
 
 const TYPES = {
   verre: { label: "Verre", icon: "🍷", color: "#9C3B3B", bg: "#F7ECEC" },
@@ -86,6 +87,7 @@ export default function TeamCalendar({ user, onSignOut }) {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [view, setView] = useState("liste"); // liste | semaine | mois
   const [refDate, setRefDate] = useState(() => new Date());
@@ -433,6 +435,10 @@ export default function TeamCalendar({ user, onSignOut }) {
         }
       `}</style>
 
+      {showNotifSettings && (
+        <NotificationSettings user={user} onClose={() => setShowNotifSettings(false)} />
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1
@@ -465,23 +471,42 @@ export default function TeamCalendar({ user, onSignOut }) {
             </button>
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          aria-expanded={showForm}
-          style={{
-            padding: "10px 18px",
-            fontSize: 14,
-            fontWeight: 500,
-            background: showForm ? "#EAE6DA" : "#2B2A28",
-            color: showForm ? "#2B2A28" : "#F7F3EC",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          {showForm ? "Annuler" : "+ Nouvel événement"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setShowNotifSettings(true)}
+            aria-haspopup="dialog"
+            style={{
+              padding: "10px 14px",
+              fontSize: 14,
+              fontWeight: 500,
+              background: "#FFFFFF",
+              color: "#2B2A28",
+              border: "1px solid #D8D3C6",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            🔔 Notifications
+          </button>
+          <button
+            onClick={() => setShowForm((s) => !s)}
+            aria-expanded={showForm}
+            style={{
+              padding: "10px 18px",
+              fontSize: 14,
+              fontWeight: 500,
+              background: showForm ? "#EAE6DA" : "#2B2A28",
+              color: showForm ? "#2B2A28" : "#F7F3EC",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            {showForm ? "Annuler" : "+ Nouvel événement"}
+          </button>
+        </div>
       </div>
 
       <div role="tablist" aria-label="Vue de l'agenda" style={{ display: "flex", gap: 6, marginBottom: 20 }}>
