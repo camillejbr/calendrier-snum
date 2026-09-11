@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabaseClient.js";
 import NotificationSettings from "./NotificationSettings.jsx";
-import AdminPanel from "./AdminPanel.jsx";
+import AdminPage from "./AdminPage.jsx";
 
 const TYPES = {
   verre: { label: "Verre", icon: "🍷", color: "#9C3B3B", bg: "#F7ECEC" },
@@ -210,6 +210,10 @@ export default function TeamCalendar({ user, onSignOut }) {
 
   function goNext() {
     setRefDate((d) => (view === "mois" ? new Date(d.getFullYear(), d.getMonth() + 1, 1) : addDays(d, 7)));
+  }
+
+  if (showAdminPanel) {
+    return <AdminPage currentUserId={user.id} onBack={() => setShowAdminPanel(false)} />;
   }
 
   if (loading) {
@@ -443,8 +447,6 @@ export default function TeamCalendar({ user, onSignOut }) {
       {showNotifSettings && (
         <NotificationSettings user={user} onClose={() => setShowNotifSettings(false)} />
       )}
-
-      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>

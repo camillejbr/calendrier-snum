@@ -74,7 +74,7 @@ src/
   Auth.jsx                écrans connexion / inscription / code de confirmation / mot de passe oublié
   TeamCalendar.jsx        calendrier (liste / semaine / mois), CRUD événements, bouton notifications
   NotificationSettings.jsx  modale des préférences email
-  AdminPanel.jsx          modale admin (liste des utilisateurs + dernière connexion), visible seulement si `is_admin()` renvoie true
+  AdminPage.jsx           page admin (pas une modale) : tableau des utilisateurs, recherche par email, suppression de compte — remplace tout l'écran, atteinte via le bouton "⚙️ Admin" (visible seulement si `is_admin()` renvoie true)
   supabaseClient.js       client Supabase (URL + clé lues depuis les variables d'env, avec valeurs de prod en fallback)
   index.css               reset global minimal (html/body/#root en 100% de hauteur)
 supabase/functions/notify/index.ts   Edge Function (voir plus bas)
@@ -126,7 +126,9 @@ insert into admins (user_id) select id from auth.users where email = '...';
 - `admin_list_users()` : renvoie `id, email, created_at, last_sign_in_at` depuis `auth.users` — une table normalement inaccessible en lecture pour le rôle `authenticated`. La fonction vérifie `is_admin()` en interne et lève une exception sinon. C'est le seul moyen pour le front d'obtenir des infos sur les autres comptes.
   - ⚠️ `auth.users.email` est de type `varchar(255)`, pas `text` — le cast explicite `u.email::text` est nécessaire dans la fonction, sinon Postgres refuse avec `structure of query does not match function result type`.
 
-Ce panneau admin (`AdminPanel.jsx`) n'affiche pour l'instant que la liste des comptes + dernière connexion. La suppression d'événements par un admin passe simplement par la policy RLS ci-dessous, pas par une fonction dédiée.
+- `admin_delete_user(target_id uuid)` : supprime un compte (`delete from auth.users`). Vérifie `is_admin()` et refuse qu'un admin se supprime lui-même. La FK `events.host_id` est en `on delete set null` (pas de cascade) : supprimer un utilisateur détache ses événements au lieu de les supprimer ou de bloquer la suppression.
+
+La suppression d'événements par un admin (pas seulement le sien) passe simplement par la policy RLS ci-dessous, pas par une fonction dédiée.
 
 ### RLS (Row Level Security)
 
