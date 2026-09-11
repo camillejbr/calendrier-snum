@@ -8,11 +8,11 @@ const SITE_URL = "https://camillejbr.github.io/calendrier-snum/";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-const TYPE_LABELS: Record<string, string> = {
-  verre: "Verre",
-  activite: "Activité",
-  sport: "Sport",
-  repas: "Repas",
+const TYPES: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  verre: { label: "Verre", icon: "🍷", color: "#9C3B3B", bg: "#F7ECEC" },
+  activite: { label: "Activité", icon: "🎉", color: "#5B4A8F", bg: "#EFEDF7" },
+  sport: { label: "Sport", icon: "🏃", color: "#3F7A5C", bg: "#EAF2ED" },
+  repas: { label: "Repas", icon: "🍽️", color: "#C97A2B", bg: "#FBF0E3" },
 };
 
 function capitalize(s: string) {
@@ -27,17 +27,99 @@ function displayNameFromEmail(email: string) {
   return nom ? `${formattedPrenom} ${nom.charAt(0).toUpperCase()}.` : formattedPrenom;
 }
 
-function formatEventLine(ev: { title: string; type: string; date: string; time: string; location: string | null }) {
-  const label = TYPE_LABELS[ev.type] || ev.type;
-  const d = new Date(ev.date + "T00:00:00");
-  const dateLabel = capitalize(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }));
-  const timeLabel = ev.time?.slice(0, 5);
-  const loc = ev.location ? ` · ${ev.location}` : "";
-  return `${label} — ${ev.title}\n${dateLabel} à ${timeLabel}${loc}`;
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-async function sendMail(to: string, subject: string, textLines: string[]) {
-  const body = textLines.join("\n\n") + `\n\n—\nL'agenda du SNUM\n${SITE_URL}`;
+function formatDateLabel(dateStr: string) {
+  const d = new Date(dateStr + "T00:00:00");
+  return capitalize(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }));
+}
+
+type EventRow = {
+  title: string;
+  type: string;
+  date: string;
+  time: string;
+  location: string | null;
+};
+
+function formatEventLine(ev: EventRow) {
+  const t = TYPES[ev.type] || TYPES.verre;
+  const loc = ev.location ? ` · ${ev.location}` : "";
+  return `${t.label} — ${ev.title}\n${formatDateLabel(ev.date)} à ${ev.time?.slice(0, 5)}${loc}`;
+}
+
+function eventCardHtml(ev: EventRow) {
+  const t = TYPES[ev.type] || TYPES.verre;
+  const loc = ev.location ? ` · ${escapeHtml(ev.location)}` : "";
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+      <tr>
+        <td style="border-left:4px solid ${t.color};background:${t.bg};border-radius:0 8px 8px 0;padding:14px 16px;">
+          <div style="font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:16px;color:#2B2A28;">
+            ${t.icon} ${escapeHtml(ev.title)}
+          </div>
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6B6862;margin-top:4px;">
+            ${formatDateLabel(ev.date)} à ${ev.time?.slice(0, 5)}${loc}
+          </div>
+        </td>
+      </tr>
+    </table>`;
+}
+
+function htmlShell(intro: string, bodyHtml: string) {
+  return `<!doctype html>
+<html lang="fr">
+  <body style="margin:0;padding:0;background:#F7F3EC;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F3EC;">
+      <tr>
+        <td align="center" style="padding:40px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+            <tr>
+              <td align="center" style="font-size:36px;padding-bottom:8px;">🗓️</td>
+            </tr>
+            <tr>
+              <td align="center" style="font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:24px;color:#2B2A28;padding-bottom:4px;">
+                L'agenda du SNUM
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6B6862;padding-bottom:24px;">
+                ${escapeHtml(intro)}
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#FFFFFF;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+                ${bodyHtml}
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-top:24px;">
+                <a href="${SITE_URL}" style="display:inline-block;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#F7F3EC;background:#2B2A28;padding:10px 20px;border-radius:6px;text-decoration:none;">
+                  Ouvrir l'agenda
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-top:16px;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#B0AB9C;">
+                L'agenda du SNUM — ${SITE_URL.replace("https://", "")}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+async function sendMail(to: string, subject: string, intro: string, bodyHtml: string, textLines: string[]) {
+  const textBody = textLines.join("\n\n") + `\n\n—\nL'agenda du SNUM\n${SITE_URL}`;
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
@@ -49,7 +131,8 @@ async function sendMail(to: string, subject: string, textLines: string[]) {
       sender: { name: "L'agenda du SNUM", email: SENDER_EMAIL },
       to: [{ email: to }],
       subject,
-      textContent: body,
+      htmlContent: htmlShell(intro, bodyHtml),
+      textContent: textBody,
     }),
   });
   if (!res.ok) {
@@ -85,13 +168,11 @@ async function handlePublished(event: any) {
   const targets = recipients.filter((r) => r.id !== event.host_id);
   if (!targets.length) return { sent: 0 };
 
-  const line = formatEventLine(event);
+  const intro = "Un nouvel événement vient d'être publié.";
+  const bodyHtml = eventCardHtml(event);
   let sent = 0;
   for (const r of targets) {
-    await sendMail(r.email, `Nouvel événement : ${event.title}`, [
-      `Un nouvel événement vient d'être publié.`,
-      line,
-    ]);
+    await sendMail(r.email, `Nouvel événement : ${event.title}`, intro, bodyHtml, [intro, formatEventLine(event)]);
     sent += 1;
   }
   return { sent };
@@ -119,8 +200,19 @@ async function handleJoined(payload: {
   const joiners = payload.new_attendees.filter((n) => n !== hostDisplayName);
   if (!joiners.length) return { sent: 0, reason: "self-join only" };
 
-  await sendMail(hostData.user.email, `Nouvelle inscription : ${payload.event_title}`, [
-    `${joiners.join(", ")} vien${joiners.length > 1 ? "nent" : "t"} de s'inscrire à ton événement "${payload.event_title}".`,
+  const namesLine = joiners.join(", ");
+  const verb = joiners.length > 1 ? "viennent" : "vient";
+  const intro = `${namesLine} ${verb} de s'inscrire à ton événement.`;
+  const bodyHtml = `
+    <div style="font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:18px;color:#2B2A28;text-align:center;">
+      ${escapeHtml(payload.event_title)}
+    </div>
+    <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6B6862;text-align:center;margin-top:8px;">
+      ${escapeHtml(namesLine)} ${verb} de s'inscrire.
+    </div>`;
+
+  await sendMail(hostData.user.email, `Nouvelle inscription : ${payload.event_title}`, intro, bodyHtml, [
+    `${namesLine} ${verb} de s'inscrire à ton événement "${payload.event_title}".`,
   ]);
   return { sent: 1 };
 }
@@ -171,17 +263,16 @@ async function handleDigestCheck() {
 
   if (!events.length) return { sent: 0, reason: "no events" };
 
+  const intro = "Voici les événements de la semaine, et ceux ajoutés la semaine dernière.";
+  const bodyHtml = events.map(eventCardHtml).join("");
+
   const recipients = await usersWithPreference("weekly_digest");
   let sent = 0;
   for (const r of recipients) {
-    await sendMail(
-      r.email,
-      "Ton récap de la semaine — L'agenda du SNUM",
-      [
-        "Voici les événements de la semaine, et ceux ajoutés la semaine dernière :",
-        ...events.map(formatEventLine),
-      ]
-    );
+    await sendMail(r.email, "Ton récap de la semaine — L'agenda du SNUM", intro, bodyHtml, [
+      intro,
+      ...events.map(formatEventLine),
+    ]);
     sent += 1;
   }
   return { sent, events: events.length };
