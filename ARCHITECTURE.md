@@ -2,6 +2,8 @@
 
 Calendrier d'équipe partagé (verres, activités, sport, repas), avec comptes réservés aux adresses `@culture.gouv.fr` et notifications par email. Ce document décrit l'architecture pour permettre une reprise en main par un·e développeur·se.
 
+> **Maintenance** : ce fichier doit être mis à jour dans le même commit que tout changement d'architecture (nouvelle table, nouvelle intégration externe, nouveau flux d'auth, etc.). Il n'y a pas d'automatisation qui le fait à ta place — si tu ajoutes une fonctionnalité qui change ce document, pense à le modifier toi-même.
+
 ## Vue d'ensemble
 
 ```
