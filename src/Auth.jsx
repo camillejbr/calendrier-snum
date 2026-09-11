@@ -211,6 +211,12 @@ export default function Auth() {
           </p>
         )}
 
+        {mode === "signup" && (
+          <p style={{ color: "#6B6862", fontSize: 15, margin: "0 0 24px" }}>
+            Réservé aux adresses <strong style={{ color: "#2B2A28" }}>@culture.gouv.fr</strong>.
+          </p>
+        )}
+
         {message && (
           <div
             role="status"
