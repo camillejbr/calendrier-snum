@@ -3,6 +3,18 @@ import { supabase } from "./supabaseClient.js";
 
 const REDIRECT_URL = `${window.location.origin}${import.meta.env.BASE_URL}`;
 
+// 12+ chars, at least one lowercase, one uppercase, one digit, one symbol
+function passwordError(pw) {
+  if (pw.length < 12) return "Le mot de passe doit faire au moins 12 caractères.";
+  if (!/[a-z]/.test(pw)) return "Le mot de passe doit contenir au moins une minuscule.";
+  if (!/[A-Z]/.test(pw)) return "Le mot de passe doit contenir au moins une majuscule.";
+  if (!/[0-9]/.test(pw)) return "Le mot de passe doit contenir au moins un chiffre.";
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pw)) {
+    return "Le mot de passe doit contenir au moins un caractère spécial (ex : ! @ # $ %).";
+  }
+  return null;
+}
+
 const wrapStyle = {
   fontFamily: "'Inter', sans-serif",
   background: "#F7F3EC",
@@ -117,8 +129,9 @@ export default function Auth() {
       setError("L'inscription est réservée aux adresses @culture.gouv.fr.");
       return;
     }
-    if (password.length < 6) {
-      setError("Le mot de passe doit faire au moins 6 caractères.");
+    const pwError = passwordError(password);
+    if (pwError) {
+      setError(pwError);
       return;
     }
     if (password !== confirmPassword) {
@@ -196,8 +209,9 @@ export default function Auth() {
     e.preventDefault();
     setError("");
     setMessage("");
-    if (password.length < 6) {
-      setError("Le mot de passe doit faire au moins 6 caractères.");
+    const pwError = passwordError(password);
+    if (pwError) {
+      setError(pwError);
       return;
     }
     if (password !== confirmPassword) {
@@ -336,6 +350,9 @@ export default function Auth() {
               onChange={(e) => setPassword(e.target.value)}
               style={inputStyle}
             />
+            <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
+              12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.
+            </p>
             <label htmlFor="signup-password-confirm" style={labelStyle}>Confirmer le mot de passe</label>
             <input
               id="signup-password-confirm"
@@ -421,6 +438,9 @@ export default function Auth() {
               onChange={(e) => setPassword(e.target.value)}
               style={inputStyle}
             />
+            <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
+              12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.
+            </p>
             <label htmlFor="reset-password-confirm" style={labelStyle}>Confirmer le mot de passe</label>
             <input
               id="reset-password-confirm"

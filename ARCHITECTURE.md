@@ -130,6 +130,7 @@ Un trigger `before insert` sur `auth.users` (fonction `enforce_culture_gouv_emai
   - Template email à éditer dans le dashboard Supabase (Authentication → Email Templates → **Confirm signup**) : doit contenir `{{ .Token }}`, ne **doit pas** contenir `{{ .ConfirmationURL }}`.
   - Côté code, la vérification se fait avec `supabase.auth.verifyOtp({ email, token, type: "email" })` — **`type: "email"`, pas `"signup"`**, malgré le nom du template. C'est une subtilité de l'API Supabase à connaître si ça semble ne plus fonctionner après une mise à jour de la librairie.
 - Mot de passe oublié : reste sur un lien cliquable classique (le risque du scanner ne s'applique pas ici, car consommer le lien seul ne donne accès à rien sans choisir un nouveau mot de passe dans la foulée, ce qu'un scanner ne fait pas).
+- **Exigence de mot de passe** : 12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial (`passwordError()` dans `Auth.jsx`). ⚠️ C'est une vérification **côté client uniquement** — pour une vraie garantie (quelqu'un pourrait appeler l'API Supabase directement en contournant le formulaire), il faut aussi configurer la même exigence côté dashboard Supabase : Authentication → Sign In / Providers → Email → "Password Requirements" (minimum length 12, "Lowercase, uppercase letters, digits and symbols").
 
 ## Edge Function `notify`
 
