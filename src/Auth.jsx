@@ -6,11 +6,12 @@ const REDIRECT_URL = `${window.location.origin}${import.meta.env.BASE_URL}`;
 const wrapStyle = {
   fontFamily: "'Inter', sans-serif",
   background: "#F7F3EC",
-  minHeight: "480px",
+  minHeight: "100dvh",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   padding: "2rem",
+  boxSizing: "border-box",
 };
 
 const inputStyle = {

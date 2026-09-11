@@ -207,7 +207,17 @@ export default function TeamCalendar({ user, onSignOut }) {
 
   if (loading) {
     return (
-      <div style={{ fontFamily: "'Inter', sans-serif", padding: "3rem", textAlign: "center", color: "#6B6862" }}>
+      <div
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          background: "#F7F3EC",
+          minHeight: "100dvh",
+          boxSizing: "border-box",
+          padding: "3rem",
+          textAlign: "center",
+          color: "#6B6862",
+        }}
+      >
         Chargement de l'agenda…
       </div>
     );
@@ -409,7 +419,8 @@ export default function TeamCalendar({ user, onSignOut }) {
       style={{
         fontFamily: "'Inter', sans-serif",
         background: "#F7F3EC",
-        minHeight: "600px",
+        minHeight: "100dvh",
+        boxSizing: "border-box",
         padding: "2rem",
         color: "#2B2A28",
       }}
