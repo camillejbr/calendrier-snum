@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabaseClient.js";
 import NotificationSettings from "./NotificationSettings.jsx";
+import AdminPanel from "./AdminPanel.jsx";
 
 const TYPES = {
   verre: { label: "Verre", icon: "🍷", color: "#9C3B3B", bg: "#F7ECEC" },
@@ -88,6 +89,8 @@ export default function TeamCalendar({ user, onSignOut }) {
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [view, setView] = useState("liste"); // liste | semaine | mois
   const [refDate, setRefDate] = useState(() => new Date());
@@ -119,6 +122,8 @@ export default function TeamCalendar({ user, onSignOut }) {
       setLoading(false);
     }
     load();
+
+    supabase.rpc("is_admin").then(({ data }) => setIsAdmin(!!data));
 
     const channel = supabase
       .channel("events-changes")
@@ -346,7 +351,7 @@ export default function TeamCalendar({ user, onSignOut }) {
           >
             {isFull ? "Complet" : going ? "Je me désiste" : "Je viens"}
           </button>
-          {isHost && (
+          {(isHost || isAdmin) && (
             <button
               onClick={() => deleteEvent(ev.id)}
               aria-label={`Supprimer l'événement ${ev.title}`}
@@ -439,6 +444,8 @@ export default function TeamCalendar({ user, onSignOut }) {
         <NotificationSettings user={user} onClose={() => setShowNotifSettings(false)} />
       )}
 
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1
@@ -472,6 +479,28 @@ export default function TeamCalendar({ user, onSignOut }) {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdminPanel(true)}
+              aria-haspopup="dialog"
+              style={{
+                height: 40,
+                boxSizing: "border-box",
+                padding: "0 14px",
+                fontSize: 14,
+                fontWeight: 500,
+                background: "#FFFFFF",
+                color: "#2B2A28",
+                border: "none",
+                boxShadow: "0 0 0 1px #D8D3C6",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              ⚙️ Admin
+            </button>
+          )}
           <button
             onClick={() => setShowNotifSettings(true)}
             aria-haspopup="dialog"

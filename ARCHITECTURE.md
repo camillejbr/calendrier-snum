@@ -74,6 +74,7 @@ src/
   Auth.jsx                écrans connexion / inscription / code de confirmation / mot de passe oublié
   TeamCalendar.jsx        calendrier (liste / semaine / mois), CRUD événements, bouton notifications
   NotificationSettings.jsx  modale des préférences email
+  AdminPanel.jsx          modale admin (liste des utilisateurs + dernière connexion), visible seulement si `is_admin()` renvoie true
   supabaseClient.js       client Supabase (URL + clé lues depuis les variables d'env, avec valeurs de prod en fallback)
   index.css               reset global minimal (html/body/#root en 100% de hauteur)
 supabase/functions/notify/index.ts   Edge Function (voir plus bas)
@@ -108,12 +109,33 @@ Le nom affiché (organisateur, participants) est dérivé automatiquement de l'e
 ### `known_names`
 Table héritée d'une version antérieure de l'app (saisie manuelle du prénom). **N'est plus utilisée par le code actuel** — candidate à la suppression.
 
+### `admins`
+| Colonne | Type | Notes |
+|---|---|---|
+| user_id | uuid | PK, FK → `auth.users` |
+| created_at | timestamptz | |
+
+Simple liste d'utilisateurs ayant accès au panneau admin (voir plus bas). Pour ajouter un admin :
+```sql
+insert into admins (user_id) select id from auth.users where email = '...';
+```
+
+### Fonctions `SECURITY DEFINER` liées à l'admin
+
+- `is_admin(uid uuid default auth.uid())` : renvoie `true`/`false`. Utilisée à la fois côté RLS (policy de suppression d'événements) et côté client (`supabase.rpc("is_admin")` pour afficher ou non le bouton "Admin").
+- `admin_list_users()` : renvoie `id, email, created_at, last_sign_in_at` depuis `auth.users` — une table normalement inaccessible en lecture pour le rôle `authenticated`. La fonction vérifie `is_admin()` en interne et lève une exception sinon. C'est le seul moyen pour le front d'obtenir des infos sur les autres comptes.
+  - ⚠️ `auth.users.email` est de type `varchar(255)`, pas `text` — le cast explicite `u.email::text` est nécessaire dans la fonction, sinon Postgres refuse avec `structure of query does not match function result type`.
+
+Ce panneau admin (`AdminPanel.jsx`) n'affiche pour l'instant que la liste des comptes + dernière connexion. La suppression d'événements par un admin passe simplement par la policy RLS ci-dessous, pas par une fonction dédiée.
+
 ### RLS (Row Level Security)
 
 Toutes les tables sont restreintes au rôle `authenticated` **et** au domaine email :
 ```sql
 using ((auth.jwt() ->> 'email') ilike '%@culture.gouv.fr')
 ```
+
+La suppression d'un événement (`delete` sur `events`) a une condition supplémentaire : `host_id = auth.uid() or is_admin()`. Avant ça, n'importe quel compte `@culture.gouv.fr` authentifié pouvait supprimer n'importe quel événement via l'API directement (le bouton "supprimer" n'était caché que côté interface, pas vraiment protégé) — c'est corrigé depuis.
 
 ⚠️ **Piège rencontré** : créer une table ne suffit pas pour que `authenticated`/`anon`/`service_role` puissent l'utiliser, même avec des policies RLS correctes — il faut aussi les `GRANT` explicites (`grant select, insert, update, delete on <table> to authenticated`). Ça a cassé la sauvegarde des préférences de notification en prod jusqu'à ce qu'on le remarque. Toute nouvelle table doit inclure ces GRANT dans sa migration.
 
