@@ -1,10 +1,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const GMAIL_USER = Deno.env.get("GMAIL_USER")!;
-const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD")!;
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY")!;
+const SENDER_EMAIL = Deno.env.get("GMAIL_USER")!;
 const SITE_URL = "https://camillejbr.github.io/calendrier-snum/";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -38,22 +37,25 @@ function formatEventLine(ev: { title: string; type: string; date: string; time: 
 }
 
 async function sendMail(to: string, subject: string, textLines: string[]) {
-  const client = new SMTPClient({
-    connection: {
-      hostname: "smtp.gmail.com",
-      port: 587,
-      tls: true,
-      auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD },
-    },
-  });
   const body = textLines.join("\n\n") + `\n\n—\nL'agenda du SNUM\n${SITE_URL}`;
-  await client.send({
-    from: `L'agenda du SNUM <${GMAIL_USER}>`,
-    to,
-    subject,
-    content: body,
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "api-key": BREVO_API_KEY,
+    },
+    body: JSON.stringify({
+      sender: { name: "L'agenda du SNUM", email: SENDER_EMAIL },
+      to: [{ email: to }],
+      subject,
+      textContent: body,
+    }),
   });
-  await client.close();
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Brevo error ${res.status}: ${errText}`);
+  }
 }
 
 async function usersWithPreference(column: "weekly_digest" | "on_publish" | "on_join") {

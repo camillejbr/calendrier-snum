@@ -64,10 +64,11 @@ function isRecoveryLink() {
 }
 
 export default function Auth() {
-  const [mode, setMode] = useState(() => (isRecoveryLink() ? "reset" : "login")); // login | signup | forgot | reset
+  const [mode, setMode] = useState(() => (isRecoveryLink() ? "reset" : "login")); // login | signup | confirm | forgot | reset
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,6 +88,7 @@ export default function Auth() {
     setMessage("");
     setPassword("");
     setConfirmPassword("");
+    setCode("");
   }
 
   async function handleLogin(e) {
@@ -124,11 +126,7 @@ export default function Auth() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: { emailRedirectTo: REDIRECT_URL },
-    });
+    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
     setBusy(false);
     if (error) {
       if (error.message === "User already registered") {
@@ -140,8 +138,44 @@ export default function Auth() {
       }
       return;
     }
-    switchMode("login");
-    setMessage("Compte créé ! Vérifie ta boîte mail et clique sur le lien de confirmation pour activer ton compte.");
+    setMode("confirm");
+    setError("");
+    setMessage("");
+  }
+
+  async function handleConfirmCode(e) {
+    e.preventDefault();
+    setError("");
+    setMessage("");
+    setBusy(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: code.trim(),
+      type: "signup",
+    });
+    setBusy(false);
+    if (error) {
+      setError(
+        error.message.toLowerCase().includes("expired") || error.message.toLowerCase().includes("invalid")
+          ? "Code incorrect ou expiré. Vérifie le code ou demande-en un nouveau."
+          : error.message
+      );
+      return;
+    }
+    // On success, the auth state change is picked up by App.jsx which shows the app.
+  }
+
+  async function resendCode() {
+    setError("");
+    setMessage("");
+    setBusy(true);
+    const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+    setBusy(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setMessage("Un nouveau code vient d'être envoyé.");
   }
 
   async function handleForgot(e) {
@@ -184,6 +218,7 @@ export default function Auth() {
   const titles = {
     login: "L'agenda du SNUM",
     signup: "Créer un compte",
+    confirm: "Vérifie ton email",
     forgot: "Mot de passe oublié",
     reset: "Nouveau mot de passe",
   };
@@ -216,6 +251,12 @@ export default function Auth() {
         {mode === "signup" && (
           <p style={{ color: "#6B6862", fontSize: 15, margin: "0 0 24px" }}>
             Réservé aux adresses <strong style={{ color: "#2B2A28" }}>@culture.gouv.fr</strong>.
+          </p>
+        )}
+
+        {mode === "confirm" && (
+          <p style={{ color: "#6B6862", fontSize: 15, margin: "0 0 24px" }}>
+            Un code à 6 chiffres vient d'être envoyé à <strong style={{ color: "#2B2A28" }}>{email}</strong>.
           </p>
         )}
 
@@ -311,6 +352,35 @@ export default function Auth() {
             <div style={{ marginTop: 14 }}>
               <button type="button" style={linkBtnStyle} onClick={() => switchMode("login")}>
                 J'ai déjà un compte
+              </button>
+            </div>
+          </form>
+        )}
+
+        {mode === "confirm" && (
+          <form onSubmit={handleConfirmCode}>
+            <label htmlFor="confirm-code" style={labelStyle}>Code à 6 chiffres</label>
+            <input
+              id="confirm-code"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="one-time-code"
+              maxLength={6}
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              style={{ ...inputStyle, letterSpacing: 4, fontSize: 20, textAlign: "center" }}
+            />
+            <button type="submit" disabled={busy} style={primaryBtnStyle}>
+              {busy ? "Vérification…" : "Valider le code"}
+            </button>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
+              <button type="button" style={linkBtnStyle} onClick={() => switchMode("login")}>
+                Retour à la connexion
+              </button>
+              <button type="button" style={linkBtnStyle} onClick={resendCode} disabled={busy}>
+                Renvoyer le code
               </button>
             </div>
           </form>
