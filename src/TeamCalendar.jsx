@@ -481,6 +481,29 @@ export default function TeamCalendar({ user, onSignOut }) {
           outline: 3px solid #4A6FA5;
           outline-offset: 2px;
         }
+        .week-day-header {
+          text-align: center;
+        }
+        @media (max-width: 520px) {
+          .header-actions {
+            flex-direction: column;
+            width: 100%;
+          }
+          .header-actions button {
+            width: 100%;
+          }
+          .week-grid {
+            display: flex !important;
+            flex-direction: column;
+            overflow-x: visible !important;
+          }
+          .week-day-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-align: left;
+          }
+        }
       `}</style>
 
       {showNotifSettings && (
@@ -519,7 +542,7 @@ export default function TeamCalendar({ user, onSignOut }) {
             </button>
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="header-actions" style={{ display: "flex", gap: 8 }}>
           {isAdmin && (
             <button
               onClick={() => setShowAdminPanel(true)}
@@ -776,14 +799,14 @@ export default function TeamCalendar({ user, onSignOut }) {
             </div>
             <button onClick={goToday} style={todayBtnStyle}>Aujourd'hui</button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(130px, 1fr))", gap: 10, overflowX: "auto" }}>
+          <div className="week-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(130px, 1fr))", gap: 10, overflowX: "auto" }}>
             {weekDays.map((day) => {
               const iso = toISO(day);
               const dayEvents = eventsByDate[iso] || [];
               const isToday = iso === todayISO;
               return (
                 <div key={iso}>
-                  <div style={{ textAlign: "center", marginBottom: 8 }}>
+                  <div className="week-day-header" style={{ marginBottom: 8 }}>
                     <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: "#8A8676", textTransform: "uppercase" }}>
                       {WEEKDAY_LABELS[(day.getDay() + 6) % 7]}
                     </p>
