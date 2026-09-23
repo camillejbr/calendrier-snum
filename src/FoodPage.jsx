@@ -785,7 +785,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                               </span>
                             ) : (
                               <span style={{ display: "flex", gap: 6 }}>
-                                <button onClick={() => openReviewForm(s.id, r)} aria-label={`Modifier l'avis de ${r.host}`} style={smallButtonStyle()}>✎</button>
+                                <button onClick={() => openReviewForm(s.id, r)} aria-label={`Modifier l'avis de ${r.host}`} style={smallButtonStyle()}>Modifier</button>
                                 <button onClick={() => setConfirmDeleteReviewId(r.id)} aria-label={`Supprimer l'avis de ${r.host}`} style={smallButtonStyle()}>✕</button>
                               </span>
                             )
