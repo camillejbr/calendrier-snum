@@ -117,6 +117,20 @@ const labelStyle = {
   marginBottom: 4,
 };
 
+// Masqué visuellement mais lu par les lecteurs d'écran : structure la page en titres
+// (RGAA) sans ajouter de texte visible superflu à l'écran.
+const srOnlyStyle = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
+
 function chipStyle(active, color) {
   return {
     padding: "6px 12px",
@@ -677,6 +691,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         </div>
       )}
 
+      <h2 style={srOnlyStyle}>Filtrer les lieux</h2>
       <div className="filter-row" style={{ marginBottom: 12 }}>
         <button onClick={() => setTypeFilter("")} style={chipStyle(typeFilter === "")}>Tous types</button>
         {Object.entries(FOOD_TYPES).map(([key, t]) => (
@@ -686,17 +701,20 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         ))}
       </div>
       <div className="filter-row" style={{ marginBottom: 16 }}>
-        <select value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
+        <label htmlFor="filter-price" style={srOnlyStyle}>Filtrer par prix</label>
+        <select id="filter-price" value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
           {PRICE_OPTIONS.map((p) => (
             <option key={p.value} value={p.value}>{p.label}</option>
           ))}
         </select>
-        <select value={distanceFilter} onChange={(e) => setDistanceFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
+        <label htmlFor="filter-distance" style={srOnlyStyle}>Filtrer par distance</label>
+        <select id="filter-distance" value={distanceFilter} onChange={(e) => setDistanceFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
           {DISTANCE_OPTIONS.map((d) => (
             <option key={d.value} value={d.value}>{d.label}</option>
           ))}
         </select>
-        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
+        <label htmlFor="filter-sort" style={srOnlyStyle}>Trier la liste</label>
+        <select id="filter-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
           <option value="distance">Trier : plus proches</option>
           <option value="rating">Trier : mieux notés</option>
           <option value="recent">Trier : plus récents</option>
@@ -705,6 +723,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
 
       <div className="food-layout">
         <div className="food-list">
+          <h2 style={srOnlyStyle}>Liste des lieux</h2>
           {loading && <p style={{ color: "#6B6862", fontSize: 14 }}>Chargement…</p>}
 
           {!loading && (
@@ -736,7 +755,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                     <div style={{ flex: 1, minWidth: 220 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                         <span aria-hidden="true">{t.icon}</span>
-                        <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 16 }}>{s.name}</span>
+                        <h3 style={{ margin: 0, fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 16 }}>{s.name}</h3>
                         {s.reviews.length > 0 ? (
                           <>
                             <Stars value={s.avgRating} />
@@ -896,6 +915,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         </div>
 
         <div className="food-map">
+          <h2 style={srOnlyStyle}>Carte des lieux</h2>
           <MapContainer center={[OFFICE_LAT, OFFICE_LNG]} zoom={15} style={{ height: "100%", width: "100%" }}>
             <MapBoundsWatcher onChange={setMapBounds} />
             <TileLayer
