@@ -1,8 +1,21 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { supabase } from "./supabaseClient.js";
 import NotificationSettings from "./NotificationSettings.jsx";
-import AdminPage from "./AdminPage.jsx";
-import FoodPage from "./FoodPage.jsx";
+
+// Chargées à la demande : AdminPage et surtout FoodPage (qui embarque Leaflet, gros
+// paquet) ne doivent pas alourdir le chargement initial du calendrier pour tout le monde.
+const AdminPage = lazy(() => import("./AdminPage.jsx"));
+const FoodPage = lazy(() => import("./FoodPage.jsx"));
+
+const pageFallbackStyle = {
+  fontFamily: "'Inter', sans-serif",
+  background: "#F7F3EC",
+  minHeight: "100dvh",
+  boxSizing: "border-box",
+  padding: "3rem",
+  textAlign: "center",
+  color: "#6B6862",
+};
 
 const TYPES = {
   verre: { label: "Verre", icon: "🍷", color: "#9C3B3B", bg: "#F7ECEC" },
@@ -242,11 +255,19 @@ export default function TeamCalendar({ user, onSignOut }) {
   }
 
   if (showAdminPanel) {
-    return <AdminPage currentUserId={user.id} onBack={backToCalendar} />;
+    return (
+      <Suspense fallback={<div style={pageFallbackStyle}>Chargement…</div>}>
+        <AdminPage currentUserId={user.id} onBack={backToCalendar} />
+      </Suspense>
+    );
   }
 
   if (showFoodPage) {
-    return <FoodPage user={user} profileName={profileName} isAdmin={isAdmin} onBack={backToCalendar} />;
+    return (
+      <Suspense fallback={<div style={pageFallbackStyle}>Chargement…</div>}>
+        <FoodPage user={user} profileName={profileName} isAdmin={isAdmin} onBack={backToCalendar} />
+      </Suspense>
+    );
   }
 
   if (loading) {

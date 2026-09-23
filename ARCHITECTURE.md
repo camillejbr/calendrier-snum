@@ -85,6 +85,8 @@ Pas de librairie de routing (une seule "page" affichée à la fois) — `TeamCal
 
 Ces deux states sont malgré tout reflétés dans l'URL via le **hash** (`#/admin`, `#/bonnes-adresses`, rien pour le calendrier) — pas de vraie route côté chemin (`/bonnes-adresses`) car GitHub Pages 404 sur un chemin inconnu chargé directement sans configuration supplémentaire (le hash, lui, n'est jamais envoyé au serveur, donc un lien copié-collé ou rechargé fonctionne toujours). Au montage, l'état initial est dérivé de `window.location.hash` ; un listener `hashchange` resynchronise l'état sur navigation précédent/suivant du navigateur ; les fonctions `openAdminPanel`/`openFoodPage`/`backToCalendar` dans `TeamCalendar.jsx` font les deux en même temps (changent le hash *et* le state).
 
+**Découpage du bundle (éco-conception)** : `AdminPage.jsx` et surtout `FoodPage.jsx` (qui embarque Leaflet, ~170 Ko) sont importés via `React.lazy()` dans `TeamCalendar.jsx` plutôt qu'en import statique, avec un `<Suspense fallback={...}>` autour de chaque early return. Résultat : le bundle initial du calendrier (ce que télécharge tout le monde, même sans jamais aller sur "Bonnes adresses") est passé de ~586 Ko à ~406 Ko minifié (114 Ko gzippé) ; le code de la carte ne se télécharge que pour qui clique effectivement sur "Bonnes adresses". La minification elle-même (JS et CSS) est déjà faite par défaut par `vite build`, rien à configurer en plus.
+
 ## Page "Bonnes adresses" (`FoodPage.jsx`)
 
 Recommandations de restaurants/boulangeries/etc. autour du bureau, avec géolocalisation sur une carte.
