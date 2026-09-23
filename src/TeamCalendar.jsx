@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabaseClient.js";
 import NotificationSettings from "./NotificationSettings.jsx";
 import AdminPage from "./AdminPage.jsx";
+import FoodPage from "./FoodPage.jsx";
 
 const TYPES = {
   verre: { label: "Verre", icon: "🍷", color: "#9C3B3B", bg: "#F7ECEC" },
@@ -90,6 +91,7 @@ export default function TeamCalendar({ user, onSignOut }) {
   const [showForm, setShowForm] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showFoodPage, setShowFoodPage] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveError, setSaveError] = useState("");
@@ -216,6 +218,10 @@ export default function TeamCalendar({ user, onSignOut }) {
 
   if (showAdminPanel) {
     return <AdminPage currentUserId={user.id} onBack={() => setShowAdminPanel(false)} />;
+  }
+
+  if (showFoodPage) {
+    return <FoodPage user={user} profileName={profileName} isAdmin={isAdmin} onBack={() => setShowFoodPage(false)} />;
   }
 
   if (loading) {
@@ -565,6 +571,25 @@ export default function TeamCalendar({ user, onSignOut }) {
               ⚙️ Admin
             </button>
           )}
+          <button
+            onClick={() => setShowFoodPage(true)}
+            style={{
+              height: 40,
+              boxSizing: "border-box",
+              padding: "0 14px",
+              fontSize: 14,
+              fontWeight: 500,
+              background: "#FFFFFF",
+              color: "#2B2A28",
+              border: "none",
+              boxShadow: "0 0 0 1px #D8D3C6",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            🍽️ Bonnes adresses
+          </button>
           <button
             onClick={() => setShowNotifSettings(true)}
             aria-haspopup="dialog"

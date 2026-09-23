@@ -75,12 +75,25 @@ src/
   TeamCalendar.jsx        calendrier (liste / semaine / mois), CRUD événements, bouton notifications
   NotificationSettings.jsx  modale des préférences email
   AdminPage.jsx           page admin (pas une modale) : tableau des utilisateurs, recherche par email, suppression de compte — remplace tout l'écran, atteinte via le bouton "⚙️ Admin" (visible seulement si `is_admin()` renvoie true)
+  FoodPage.jsx            page "Bonnes adresses" : carte (Leaflet/OpenStreetMap) centrée sur le bureau + liste filtrable des recommandations food, atteinte via le bouton "🍽️ Bonnes adresses"
   supabaseClient.js       client Supabase (URL + clé lues depuis les variables d'env, avec valeurs de prod en fallback)
   index.css               reset global minimal (html/body/#root en 100% de hauteur)
 supabase/functions/notify/index.ts   Edge Function (voir plus bas)
 ```
 
-Pas de routeur (une seule "page"), pas de state manager externe (juste `useState`/`useEffect`).
+Pas de routeur (une seule "page" affichée à la fois) — `TeamCalendar.jsx` fait un early return vers `<AdminPage/>` ou `<FoodPage/>` selon un state local, plutôt que d'utiliser une vraie librairie de routing. Pas de state manager externe non plus (juste `useState`/`useEffect`).
+
+## Page "Bonnes adresses" (`FoodPage.jsx`)
+
+Recommandations de restaurants/boulangeries/etc. autour du bureau, avec géolocalisation sur une carte.
+
+- **Bureau de référence** : Ministère de la Culture, 3 rue de Valois, 75001 Paris — coordonnées codées en dur dans `FoodPage.jsx` (`OFFICE_LAT`/`OFFICE_LNG` = 48.8635971 / 2.3376992, vérifiées via Nominatim). Si le bureau déménage, c'est la seule chose à changer dans ce fichier.
+- **Carte** : `react-leaflet` (v4, compatible React 18 — la v5 exige React 19) + `leaflet`, tuiles OpenStreetMap standard (gratuit, pas de clé API). Les marqueurs par défaut de Leaflet cassent avec Vite (chemins d'icônes relatifs) — évité entièrement en utilisant des `L.divIcon` custom (pastille colorée + emoji) pour tous les marqueurs, y compris celui du bureau.
+- **Géocodage** : adresse tapée en texte → convertie en lat/lng via l'API de recherche **Nominatim** (`nominatim.openstreetmap.org/search`, gratuite, sans clé). Recherche bornée à ~5,5 km autour du bureau (`viewbox` + `bounded=1`) pour éviter les faux positifs sur des adresses courtes/ambiguës.
+  - Flux en deux temps : l'utilisateur remplit le formulaire et clique "Localiser l'adresse" → l'app affiche l'adresse trouvée + la distance au bureau pour confirmation → seulement là, "Confirmer et publier" insère réellement la ligne. Ça évite de publier un point mal géolocalisé sans que personne ne le remarque.
+- **Distance** : calculée côté client (formule de Haversine), pas stockée en base — recalculée à chaque chargement à partir de `lat`/`lng`.
+- **Table `food_spots`** : name, type (restaurant/boulangerie/cafe/bar/autre), address, lat, lng, price (€/€€/€€€), rating (1-5, `not null check`), comment (optionnel), host/host_id (même pattern que `events` — `host_id` en `on delete set null`). RLS : lecture/écriture réservées à `@culture.gouv.fr`, suppression/modification réservées à l'auteur ou un admin (`is_admin()`).
+- Chaque soumission est une recommandation indépendante : si deux personnes recommandent le même restaurant, ça fait deux entrées (pas de regroupement/moyenne des avis) — choix délibéré pour rester simple.
 
 ### Nom affiché
 
