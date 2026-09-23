@@ -90,8 +90,8 @@ export default function TeamCalendar({ user, onSignOut }) {
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [showFoodPage, setShowFoodPage] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(() => window.location.hash === "#/admin");
+  const [showFoodPage, setShowFoodPage] = useState(() => window.location.hash === "#/bonnes-adresses");
   const [isAdmin, setIsAdmin] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveError, setSaveError] = useState("");
@@ -139,6 +139,31 @@ export default function TeamCalendar({ user, onSignOut }) {
       supabase.removeChannel(channel);
     };
   }, [loadEvents]);
+
+  useEffect(() => {
+    function onHashChange() {
+      setShowAdminPanel(window.location.hash === "#/admin");
+      setShowFoodPage(window.location.hash === "#/bonnes-adresses");
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  function openAdminPanel() {
+    window.location.hash = "/admin";
+    setShowAdminPanel(true);
+  }
+
+  function openFoodPage() {
+    window.location.hash = "/bonnes-adresses";
+    setShowFoodPage(true);
+  }
+
+  function backToCalendar() {
+    history.pushState(null, "", window.location.pathname + window.location.search);
+    setShowAdminPanel(false);
+    setShowFoodPage(false);
+  }
 
   function updateForm(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -217,11 +242,11 @@ export default function TeamCalendar({ user, onSignOut }) {
   }
 
   if (showAdminPanel) {
-    return <AdminPage currentUserId={user.id} onBack={() => setShowAdminPanel(false)} />;
+    return <AdminPage currentUserId={user.id} onBack={backToCalendar} />;
   }
 
   if (showFoodPage) {
-    return <FoodPage user={user} profileName={profileName} isAdmin={isAdmin} onBack={() => setShowFoodPage(false)} />;
+    return <FoodPage user={user} profileName={profileName} isAdmin={isAdmin} onBack={backToCalendar} />;
   }
 
   if (loading) {
@@ -551,7 +576,7 @@ export default function TeamCalendar({ user, onSignOut }) {
         <div className="header-actions" style={{ display: "flex", gap: 8 }}>
           {isAdmin && (
             <button
-              onClick={() => setShowAdminPanel(true)}
+              onClick={openAdminPanel}
               aria-haspopup="dialog"
               style={{
                 height: 40,
@@ -572,7 +597,7 @@ export default function TeamCalendar({ user, onSignOut }) {
             </button>
           )}
           <button
-            onClick={() => setShowFoodPage(true)}
+            onClick={openFoodPage}
             style={{
               height: 40,
               boxSizing: "border-box",

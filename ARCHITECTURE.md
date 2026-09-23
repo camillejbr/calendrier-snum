@@ -81,7 +81,9 @@ src/
 supabase/functions/notify/index.ts   Edge Function (voir plus bas)
 ```
 
-Pas de routeur (une seule "page" affichée à la fois) — `TeamCalendar.jsx` fait un early return vers `<AdminPage/>` ou `<FoodPage/>` selon un state local, plutôt que d'utiliser une vraie librairie de routing. Pas de state manager externe non plus (juste `useState`/`useEffect`).
+Pas de librairie de routing (une seule "page" affichée à la fois) — `TeamCalendar.jsx` fait un early return vers `<AdminPage/>` ou `<FoodPage/>` selon un state local (`showAdminPanel`/`showFoodPage`). Pas de state manager externe non plus (juste `useState`/`useEffect`).
+
+Ces deux states sont malgré tout reflétés dans l'URL via le **hash** (`#/admin`, `#/bonnes-adresses`, rien pour le calendrier) — pas de vraie route côté chemin (`/bonnes-adresses`) car GitHub Pages 404 sur un chemin inconnu chargé directement sans configuration supplémentaire (le hash, lui, n'est jamais envoyé au serveur, donc un lien copié-collé ou rechargé fonctionne toujours). Au montage, l'état initial est dérivé de `window.location.hash` ; un listener `hashchange` resynchronise l'état sur navigation précédent/suivant du navigateur ; les fonctions `openAdminPanel`/`openFoodPage`/`backToCalendar` dans `TeamCalendar.jsx` font les deux en même temps (changent le hash *et* le state).
 
 ## Page "Bonnes adresses" (`FoodPage.jsx`)
 
