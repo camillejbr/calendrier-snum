@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { supabase } from "./supabaseClient.js";
@@ -78,6 +78,18 @@ function pinIcon(color, emoji, big) {
 }
 
 const officeIcon = pinIcon("#2B2A28", "🏛️", true);
+
+function MapBoundsWatcher({ onChange }) {
+  const map = useMapEvents({
+    moveend: () => onChange(map.getBounds()),
+    zoomend: () => onChange(map.getBounds()),
+  });
+  useEffect(() => {
+    onChange(map.getBounds());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
 
 const inputStyle = {
   width: "100%",
@@ -186,6 +198,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [priceFilter, setPriceFilter] = useState("");
   const [distanceFilter, setDistanceFilter] = useState("");
   const [sortBy, setSortBy] = useState("distance"); // distance | rating | recent
+  const [mapBounds, setMapBounds] = useState(null);
 
   async function loadData() {
     const [{ data: spotsData, error: spotsErr }, { data: reviewsData, error: reviewsErr }] = await Promise.all([
@@ -244,6 +257,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     else list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return list;
   }, [spotsWithReviews, typeFilter, priceFilter, distanceFilter, sortBy]);
+
+  // Ce que montre la carte à l'instant T (zoom/déplacement) restreint la liste affichée à gauche.
+  const visibleInList = useMemo(() => {
+    if (!mapBounds) return filtered;
+    return filtered.filter((s) => mapBounds.contains([s.lat, s.lng]));
+  }, [filtered, mapBounds]);
 
   function updatePlaceForm(field, value) {
     setPlaceForm((f) => ({ ...f, [field]: value }));
@@ -642,10 +661,11 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           {!loading && (
             <>
               <p style={{ fontSize: 12, color: "#8A8676", margin: "0 0 12px" }}>
-                {filtered.length} lieu{filtered.length > 1 ? "x" : ""}
+                {visibleInList.length} lieu{visibleInList.length > 1 ? "x" : ""}
+                {visibleInList.length !== filtered.length && ` visible${visibleInList.length > 1 ? "s" : ""} sur la carte (sur ${filtered.length} au total)`}
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {filtered.map((s) => {
+                {visibleInList.map((s) => {
               const t = FOOD_TYPES[s.type] || FALLBACK_TYPE;
               const canEditSpot = s.host_id === user.id || isAdmin;
               const confirmingSpotDelete = confirmDeleteSpotId === s.id;
@@ -795,6 +815,11 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                 Aucun lieu pour ces filtres. Sois le premier à en ajouter un !
               </p>
             )}
+            {filtered.length > 0 && visibleInList.length === 0 && (
+              <p style={{ textAlign: "center", padding: "32px 0", color: "#6B6862", fontSize: 14 }}>
+                Aucun lieu visible dans cette zone de la carte. Dézoome ou déplace-toi.
+              </p>
+            )}
               </div>
             </>
           )}
@@ -802,6 +827,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
 
         <div className="food-map">
           <MapContainer center={[OFFICE_LAT, OFFICE_LNG]} zoom={15} style={{ height: "100%", width: "100%" }}>
+            <MapBoundsWatcher onChange={setMapBounds} />
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
