@@ -46,6 +46,14 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function normalizeName(str) {
+  return str
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
 function metersToWalkMinutes(m) {
   return Math.max(1, Math.round(m / WALK_M_PER_MIN));
 }
@@ -181,6 +189,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [placeForm, setPlaceForm] = useState(emptyPlaceForm);
   const [placeFormErr, setPlaceFormErr] = useState("");
   const [placeSaving, setPlaceSaving] = useState(false);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
 
   const [geoResult, setGeoResult] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
@@ -264,8 +273,17 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     return filtered.filter((s) => mapBounds.contains([s.lat, s.lng]));
   }, [filtered, mapBounds]);
 
+  // Lieu existant portant (à peu près) le même nom que celui en train d'être créé, pour prévenir les doublons.
+  const duplicateSpot = useMemo(() => {
+    if (editingSpotId) return null;
+    const norm = normalizeName(placeForm.name);
+    if (!norm) return null;
+    return spots.find((s) => normalizeName(s.name) === norm) || null;
+  }, [placeForm.name, spots, editingSpotId]);
+
   function updatePlaceForm(field, value) {
     setPlaceForm((f) => ({ ...f, [field]: value }));
+    if (field === "name") setConfirmDuplicate(false);
   }
 
   function openPlaceForm(spot = null) {
@@ -295,6 +313,11 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     setPlaceFormErr("");
     if (!placeForm.name.trim()) {
       setPlaceFormErr("Renseigne un nom.");
+      return;
+    }
+    if (duplicateSpot && !confirmDuplicate) {
+      setPlaceFormErr(`"${duplicateSpot.name}" existe déjà (${duplicateSpot.address}). Clique encore sur "Publier" pour créer un doublon quand même, ou ajoute plutôt ton avis à ce lieu depuis la liste.`);
+      setConfirmDuplicate(true);
       return;
     }
     if (!geoResult || geoResult.displayName !== placeForm.address) {
@@ -534,6 +557,18 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   onChange={(e) => updatePlaceForm("name", e.target.value)}
                   style={inputStyle}
                 />
+                {duplicateSpot && (
+                  <p style={{ margin: "6px 0 0", fontSize: 12, color: "#9C3B3B" }}>
+                    ⚠️ "{duplicateSpot.name}" existe déjà ({duplicateSpot.address}).{" "}
+                    <button
+                      type="button"
+                      onClick={() => openReviewForm(duplicateSpot.id)}
+                      style={{ background: "none", border: "none", padding: 0, color: "#9C3B3B", textDecoration: "underline", cursor: "pointer", fontSize: 12, fontFamily: "'Inter', sans-serif" }}
+                    >
+                      Ajoute plutôt ton avis à ce lieu →
+                    </button>
+                  </p>
+                )}
               </div>
               <div style={{ gridColumn: "1 / -1", position: "relative" }}>
                 <label htmlFor="fs-address" style={labelStyle}>Adresse</label>
