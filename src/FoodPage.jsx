@@ -112,59 +112,105 @@ function chipStyle(active, color) {
   };
 }
 
+function smallButtonStyle() {
+  return { padding: "7px 10px", fontSize: 12, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" };
+}
+
 function Stars({ value }) {
+  const rounded = Math.round(value);
   return (
     <span aria-label={`${value} sur 5`} style={{ color: "#C97A2B", fontSize: 13 }}>
-      {"★".repeat(value)}
-      <span style={{ color: "#D8D3C6" }}>{"★".repeat(5 - value)}</span>
+      {"★".repeat(rounded)}
+      <span style={{ color: "#D8D3C6" }}>{"★".repeat(5 - rounded)}</span>
     </span>
   );
 }
 
-const emptyForm = { name: "", type: "italien", address: "", price: "20", rating: 0, comment: "" };
+function StarPicker({ value, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 4 }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
+          aria-pressed={value === n}
+          style={{
+            background: "none",
+            border: "none",
+            fontSize: 24,
+            cursor: "pointer",
+            color: n <= value ? "#C97A2B" : "#D8D3C6",
+            padding: 2,
+          }}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const emptyPlaceForm = { name: "", type: "italien", address: "", price: "20", rating: 0, comment: "" };
+const emptyReviewForm = { price: "20", rating: 0, comment: "" };
 
 export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [loading, setLoading] = useState(true);
   const [spots, setSpots] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [saveError, setSaveError] = useState("");
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDeleteSpotId, setConfirmDeleteSpotId] = useState(null);
+  const [confirmDeleteReviewId, setConfirmDeleteReviewId] = useState(null);
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(emptyForm);
-  const [formErr, setFormErr] = useState("");
-  const [saving, setSaving] = useState(false);
+  // Place form (create a new spot + its first review, or edit an existing spot's info)
+  const [showPlaceForm, setShowPlaceForm] = useState(false);
+  const [editingSpotId, setEditingSpotId] = useState(null);
+  const [placeForm, setPlaceForm] = useState(emptyPlaceForm);
+  const [placeFormErr, setPlaceFormErr] = useState("");
+  const [placeSaving, setPlaceSaving] = useState(false);
 
   const [geoResult, setGeoResult] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const debounceRef = useRef(null);
 
+  // Review form (add a review to an existing spot, or edit one's own review)
+  const [reviewFormSpotId, setReviewFormSpotId] = useState(null);
+  const [editingReviewId, setEditingReviewId] = useState(null);
+  const [reviewForm, setReviewForm] = useState(emptyReviewForm);
+  const [reviewFormErr, setReviewFormErr] = useState("");
+  const [reviewSaving, setReviewSaving] = useState(false);
+
   const [typeFilter, setTypeFilter] = useState("");
   const [priceFilter, setPriceFilter] = useState("");
   const [distanceFilter, setDistanceFilter] = useState("");
   const [sortBy, setSortBy] = useState("distance"); // distance | rating | recent
 
-  async function loadSpots() {
-    const { data, error } = await supabase.from("food_spots").select("*").order("created_at", { ascending: false });
-    if (!error && data) setSpots(data);
+  async function loadData() {
+    const [{ data: spotsData, error: spotsErr }, { data: reviewsData, error: reviewsErr }] = await Promise.all([
+      supabase.from("food_spots").select("*"),
+      supabase.from("food_reviews").select("*").order("created_at", { ascending: false }),
+    ]);
+    if (!spotsErr && spotsData) setSpots(spotsData);
+    if (!reviewsErr && reviewsData) setReviews(reviewsData);
     setLoading(false);
   }
 
   useEffect(() => {
-    loadSpots();
+    loadData();
   }, []);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!form.address.trim() || (geoResult && geoResult.displayName === form.address)) {
+    if (!placeForm.address.trim() || (geoResult && geoResult.displayName === placeForm.address)) {
       setSuggestions([]);
       return;
     }
     debounceRef.current = setTimeout(async () => {
       setSuggestLoading(true);
       try {
-        const results = await searchAddress(form.address.trim());
+        const results = await searchAddress(placeForm.address.trim());
         setSuggestions(results);
       } catch {
         setSuggestions([]);
@@ -173,111 +219,200 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     }, 350);
     return () => clearTimeout(debounceRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.address]);
+  }, [placeForm.address]);
 
-  const withDistance = useMemo(
-    () => spots.map((s) => ({ ...s, distance: haversineMeters(OFFICE_LAT, OFFICE_LNG, s.lat, s.lng) })),
-    [spots]
-  );
+  const spotsWithReviews = useMemo(() => {
+    return spots.map((s) => {
+      const spotReviews = reviews
+        .filter((r) => r.spot_id === s.id)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const avgRating = spotReviews.length ? spotReviews.reduce((sum, r) => sum + r.rating, 0) / spotReviews.length : 0;
+      const avgPrice = spotReviews.length ? Math.round(spotReviews.reduce((sum, r) => sum + r.price, 0) / spotReviews.length) : 0;
+      const distance = haversineMeters(OFFICE_LAT, OFFICE_LNG, s.lat, s.lng);
+      return { ...s, reviews: spotReviews, avgRating, avgPrice, distance };
+    });
+  }, [spots, reviews]);
 
   const filtered = useMemo(() => {
-    let list = withDistance;
+    let list = spotsWithReviews;
     if (typeFilter) list = list.filter((s) => s.type === typeFilter);
-    if (priceFilter) list = list.filter((s) => s.price <= Number(priceFilter));
+    if (priceFilter) list = list.filter((s) => s.reviews.length > 0 && s.avgPrice <= Number(priceFilter));
     if (distanceFilter) list = list.filter((s) => metersToWalkMinutes(s.distance) < Number(distanceFilter));
     list = [...list];
     if (sortBy === "distance") list.sort((a, b) => a.distance - b.distance);
-    else if (sortBy === "rating") list.sort((a, b) => b.rating - a.rating);
+    else if (sortBy === "rating") list.sort((a, b) => b.avgRating - a.avgRating);
     else list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return list;
-  }, [withDistance, typeFilter, priceFilter, distanceFilter, sortBy]);
+  }, [spotsWithReviews, typeFilter, priceFilter, distanceFilter, sortBy]);
 
-  function updateForm(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
+  function updatePlaceForm(field, value) {
+    setPlaceForm((f) => ({ ...f, [field]: value }));
   }
 
-  function openForm(spot = null) {
-    setShowForm(true);
-    setFormErr("");
+  function openPlaceForm(spot = null) {
+    setShowPlaceForm(true);
+    setReviewFormSpotId(null);
+    setPlaceFormErr("");
     setSuggestions([]);
     if (spot) {
-      setEditingId(spot.id);
-      setForm({
-        name: spot.name,
-        type: spot.type,
-        address: spot.address,
-        price: String(spot.price),
-        rating: spot.rating,
-        comment: spot.comment || "",
-      });
+      setEditingSpotId(spot.id);
+      setPlaceForm({ name: spot.name, type: spot.type, address: spot.address, price: "20", rating: 0, comment: "" });
       setGeoResult({ lat: spot.lat, lng: spot.lng, displayName: spot.address });
     } else {
-      setEditingId(null);
-      setForm(emptyForm);
+      setEditingSpotId(null);
+      setPlaceForm(emptyPlaceForm);
       setGeoResult(null);
     }
   }
 
   function selectSuggestion(s) {
-    setForm((f) => ({ ...f, address: s.displayName }));
+    setPlaceForm((f) => ({ ...f, address: s.displayName }));
     setGeoResult(s);
     setSuggestions([]);
   }
 
-  async function handleSubmit(e) {
+  async function handlePlaceSubmit(e) {
     e.preventDefault();
-    setFormErr("");
-    if (!form.name.trim()) {
-      setFormErr("Renseigne un nom.");
+    setPlaceFormErr("");
+    if (!placeForm.name.trim()) {
+      setPlaceFormErr("Renseigne un nom.");
       return;
     }
-    if (!geoResult || geoResult.displayName !== form.address) {
-      setFormErr("Choisis une adresse dans la liste de suggestions.");
+    if (!geoResult || geoResult.displayName !== placeForm.address) {
+      setPlaceFormErr("Choisis une adresse dans la liste de suggestions.");
       return;
     }
-    if (!form.rating) {
-      setFormErr("Choisis une note.");
-      return;
+    let priceNum = null;
+    if (!editingSpotId) {
+      if (!placeForm.rating) {
+        setPlaceFormErr("Choisis une note.");
+        return;
+      }
+      priceNum = Number(placeForm.price);
+      if (!placeForm.price || Number.isNaN(priceNum) || priceNum <= 0) {
+        setPlaceFormErr("Renseigne un prix valide.");
+        return;
+      }
     }
-    const priceNum = Number(form.price);
-    if (!form.price || Number.isNaN(priceNum) || priceNum <= 0) {
-      setFormErr("Renseigne un prix valide.");
-      return;
-    }
-    setSaving(true);
-    const payload = {
-      name: form.name.trim(),
-      type: form.type,
-      address: form.address.trim(),
+    setPlaceSaving(true);
+    const spotPayload = {
+      name: placeForm.name.trim(),
+      type: placeForm.type,
+      address: placeForm.address.trim(),
       lat: geoResult.lat,
       lng: geoResult.lng,
-      price: priceNum,
-      rating: form.rating,
-      comment: form.comment.trim() || null,
     };
-    const { error } = editingId
-      ? await supabase.from("food_spots").update(payload).eq("id", editingId)
-      : await supabase.from("food_spots").insert({ ...payload, host: profileName });
-    setSaving(false);
-    if (error) {
-      console.error(error);
-      setFormErr("La sauvegarde n'a pas fonctionné. Réessaie.");
-      return;
+    if (editingSpotId) {
+      const { error } = await supabase.from("food_spots").update(spotPayload).eq("id", editingSpotId);
+      setPlaceSaving(false);
+      if (error) {
+        console.error(error);
+        setPlaceFormErr("La sauvegarde n'a pas fonctionné. Réessaie.");
+        return;
+      }
+    } else {
+      const { data: spot, error: spotError } = await supabase
+        .from("food_spots")
+        .insert({ ...spotPayload, host: profileName })
+        .select()
+        .single();
+      if (spotError) {
+        console.error(spotError);
+        setPlaceSaving(false);
+        setPlaceFormErr("La sauvegarde n'a pas fonctionné. Réessaie.");
+        return;
+      }
+      const { error: reviewError } = await supabase.from("food_reviews").insert({
+        spot_id: spot.id,
+        price: priceNum,
+        rating: placeForm.rating,
+        comment: placeForm.comment.trim() || null,
+        host: profileName,
+      });
+      setPlaceSaving(false);
+      if (reviewError) {
+        console.error(reviewError);
+        setPlaceFormErr("Le lieu a été créé mais ton avis n'a pas pu être enregistré. Réessaie depuis la liste.");
+        setShowPlaceForm(false);
+        setEditingSpotId(null);
+        loadData();
+        return;
+      }
     }
-    setShowForm(false);
-    setEditingId(null);
-    loadSpots();
+    setShowPlaceForm(false);
+    setEditingSpotId(null);
+    loadData();
   }
 
   async function deleteSpot(id) {
     const { error } = await supabase.from("food_spots").delete().eq("id", id);
-    setConfirmDeleteId(null);
+    setConfirmDeleteSpotId(null);
     if (error) {
       setSaveError("La suppression n'a pas fonctionné. Réessaie.");
       return;
     }
     setSaveError("");
-    loadSpots();
+    loadData();
+  }
+
+  function updateReviewForm(field, value) {
+    setReviewForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function openReviewForm(spotId, existingReview = null) {
+    setReviewFormSpotId(spotId);
+    setShowPlaceForm(false);
+    setReviewFormErr("");
+    if (existingReview) {
+      setEditingReviewId(existingReview.id);
+      setReviewForm({ price: String(existingReview.price), rating: existingReview.rating, comment: existingReview.comment || "" });
+    } else {
+      setEditingReviewId(null);
+      setReviewForm(emptyReviewForm);
+    }
+  }
+
+  function closeReviewForm() {
+    setReviewFormSpotId(null);
+    setEditingReviewId(null);
+  }
+
+  async function handleReviewSubmit(e) {
+    e.preventDefault();
+    setReviewFormErr("");
+    if (!reviewForm.rating) {
+      setReviewFormErr("Choisis une note.");
+      return;
+    }
+    const priceNum = Number(reviewForm.price);
+    if (!reviewForm.price || Number.isNaN(priceNum) || priceNum <= 0) {
+      setReviewFormErr("Renseigne un prix valide.");
+      return;
+    }
+    setReviewSaving(true);
+    const payload = { price: priceNum, rating: reviewForm.rating, comment: reviewForm.comment.trim() || null };
+    const { error } = editingReviewId
+      ? await supabase.from("food_reviews").update(payload).eq("id", editingReviewId)
+      : await supabase.from("food_reviews").insert({ ...payload, spot_id: reviewFormSpotId, host: profileName });
+    setReviewSaving(false);
+    if (error) {
+      console.error(error);
+      setReviewFormErr("La sauvegarde n'a pas fonctionné. Réessaie.");
+      return;
+    }
+    closeReviewForm();
+    loadData();
+  }
+
+  async function deleteReview(id) {
+    const { error } = await supabase.from("food_reviews").delete().eq("id", id);
+    setConfirmDeleteReviewId(null);
+    if (error) {
+      setSaveError("La suppression n'a pas fonctionné. Réessaie.");
+      return;
+    }
+    setSaveError("");
+    loadData();
   }
 
   return (
@@ -304,6 +439,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         .address-suggestions li button { display: block; width: 100%; text-align: left; padding: 9px 12px; font-size: 13px; background: none; border: none; border-bottom: 1px solid #EDE8DA; cursor: pointer; font-family: 'Inter', sans-serif; color: #2B2A28; }
         .address-suggestions li:last-child button { border-bottom: none; }
         .address-suggestions li button:hover { background: #F7F3EC; }
+        .review-row { border-top: 1px solid #EDE8DA; padding: 10px 0 0; margin-top: 10px; }
       `}</style>
 
       <button
@@ -331,7 +467,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>Autour du bureau, {OFFICE_LABEL}.</p>
         </div>
         <button
-          onClick={() => openForm()}
+          onClick={() => openPlaceForm()}
           style={{
             padding: "10px 18px",
             fontSize: 14,
@@ -355,12 +491,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         </div>
       )}
 
-      {showForm && (
+      {showPlaceForm && (
         <div style={{ background: "#FFFFFF", border: "1px solid #E4DFD1", borderRadius: 10, padding: 20, marginBottom: 24 }}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 18, margin: "0 0 14px" }}>
-            {editingId ? "Modifier le lieu" : "Ajouter un lieu"}
+            {editingSpotId ? "Modifier le lieu" : "Ajouter un lieu"}
           </h2>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handlePlaceSubmit}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
               <div style={{ gridColumn: "1 / -1" }}>
                 <label htmlFor="fs-name" style={labelStyle}>Nom</label>
@@ -368,8 +504,8 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   id="fs-name"
                   type="text"
                   placeholder="ex : Chez Nénesse"
-                  value={form.name}
-                  onChange={(e) => updateForm("name", e.target.value)}
+                  value={placeForm.name}
+                  onChange={(e) => updatePlaceForm("name", e.target.value)}
                   style={inputStyle}
                 />
               </div>
@@ -380,9 +516,9 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   type="text"
                   autoComplete="off"
                   placeholder="ex : 17 rue de Saintonge"
-                  value={form.address}
+                  value={placeForm.address}
                   onChange={(e) => {
-                    updateForm("address", e.target.value);
+                    updatePlaceForm("address", e.target.value);
                     setGeoResult(null);
                   }}
                   style={inputStyle}
@@ -399,81 +535,65 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                     ))}
                   </ul>
                 )}
-                {geoResult && geoResult.displayName === form.address && (
+                {geoResult && geoResult.displayName === placeForm.address && (
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#3F7A5C" }}>
                     ✓ Adresse repérée, à {formatWalkTime(haversineMeters(OFFICE_LAT, OFFICE_LNG, geoResult.lat, geoResult.lng))} du bureau
                   </p>
                 )}
               </div>
-              <div>
+              <div style={{ gridColumn: editingSpotId ? "1 / -1" : "auto" }}>
                 <label htmlFor="fs-type" style={labelStyle}>Type</label>
-                <select id="fs-type" value={form.type} onChange={(e) => updateForm("type", e.target.value)} style={inputStyle}>
+                <select id="fs-type" value={placeForm.type} onChange={(e) => updatePlaceForm("type", e.target.value)} style={inputStyle}>
                   {Object.entries(FOOD_TYPES).map(([key, t]) => (
                     <option key={key} value={key}>{t.icon} {t.label}</option>
                   ))}
                 </select>
               </div>
-              <div>
-                <label htmlFor="fs-price" style={labelStyle}>Prix (€)</label>
-                <input
-                  id="fs-price"
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="20"
-                  value={form.price}
-                  onChange={(e) => updateForm("price", e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>Note</label>
-                <div style={{ display: "flex", gap: 4 }}>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => updateForm("rating", n)}
-                      aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
-                      aria-pressed={form.rating === n}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        fontSize: 24,
-                        cursor: "pointer",
-                        color: n <= form.rating ? "#C97A2B" : "#D8D3C6",
-                        padding: 2,
-                      }}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label htmlFor="fs-comment" style={labelStyle}>Ton avis (optionnel)</label>
-                <textarea
-                  id="fs-comment"
-                  rows={3}
-                  placeholder="Qu'est-ce que tu recommandes, l'ambiance, le prix…"
-                  value={form.comment}
-                  onChange={(e) => updateForm("comment", e.target.value)}
-                  style={{ ...inputStyle, resize: "vertical" }}
-                />
-              </div>
+              {!editingSpotId && (
+                <>
+                  <div>
+                    <label htmlFor="fs-price" style={labelStyle}>Prix (€)</label>
+                    <input
+                      id="fs-price"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="20"
+                      value={placeForm.price}
+                      onChange={(e) => updatePlaceForm("price", e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={labelStyle}>Ta note</label>
+                    <StarPicker value={placeForm.rating} onChange={(n) => updatePlaceForm("rating", n)} />
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label htmlFor="fs-comment" style={labelStyle}>Ton avis (optionnel)</label>
+                    <textarea
+                      id="fs-comment"
+                      rows={3}
+                      placeholder="Qu'est-ce que tu recommandes, l'ambiance, le prix…"
+                      value={placeForm.comment}
+                      onChange={(e) => updatePlaceForm("comment", e.target.value)}
+                      style={{ ...inputStyle, resize: "vertical" }}
+                    />
+                  </div>
+                </>
+              )}
             </div>
-            {formErr && <p role="alert" style={{ color: "#9C3B3B", fontSize: 13, margin: "0 0 12px" }}>{formErr}</p>}
+            {placeFormErr && <p role="alert" style={{ color: "#9C3B3B", fontSize: 13, margin: "0 0 12px" }}>{placeFormErr}</p>}
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 type="submit"
-                disabled={saving}
-                style={{ padding: "9px 16px", fontSize: 14, fontWeight: 500, background: "#2B2A28", color: "#F7F3EC", border: "none", borderRadius: 6, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif" }}
+                disabled={placeSaving}
+                style={{ padding: "9px 16px", fontSize: 14, fontWeight: 500, background: "#2B2A28", color: "#F7F3EC", border: "none", borderRadius: 6, cursor: placeSaving ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif" }}
               >
-                {saving ? "Enregistrement…" : editingId ? "Enregistrer les modifications" : "Publier"}
+                {placeSaving ? "Enregistrement…" : editingSpotId ? "Enregistrer les modifications" : "Publier"}
               </button>
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setEditingId(null); }}
+                onClick={() => { setShowPlaceForm(false); setEditingSpotId(null); }}
                 style={{ padding: "9px 16px", fontSize: 14, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
               >
                 Annuler
@@ -523,8 +643,15 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
               <Popup>
                 <strong>{s.name}</strong>
                 <br />
-                {s.price} € · <Stars value={s.rating} /> · {formatWalkTime(s.distance)}
-                {s.comment && <><br />{s.comment}</>}
+                {s.reviews.length > 0 ? (
+                  <>
+                    {s.avgPrice} € · <Stars value={s.avgRating} /> · {formatWalkTime(s.distance)}
+                    <br />
+                    {s.reviews.length} avis
+                  </>
+                ) : (
+                  <>Pas encore d'avis · {formatWalkTime(s.distance)}</>
+                )}
               </Popup>
             </Marker>
           ))}
@@ -541,8 +668,10 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {filtered.map((s) => {
               const t = FOOD_TYPES[s.type] || FALLBACK_TYPE;
-              const canEdit = s.host_id === user.id || isAdmin;
-              const confirming = confirmDeleteId === s.id;
+              const canEditSpot = s.host_id === user.id || isAdmin;
+              const confirmingSpotDelete = confirmDeleteSpotId === s.id;
+              const myReview = s.reviews.find((r) => r.host_id === user.id);
+              const addingReviewHere = reviewFormSpotId === s.id;
               return (
                 <div
                   key={s.id}
@@ -553,49 +682,131 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                     borderLeftWidth: 4,
                     borderRadius: "0 8px 8px 0",
                     padding: "14px 18px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 16,
-                    flexWrap: "wrap",
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 220 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                      <span aria-hidden="true">{t.icon}</span>
-                      <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 16 }}>{s.name}</span>
-                      <Stars value={s.rating} />
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                        <span aria-hidden="true">{t.icon}</span>
+                        <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 16 }}>{s.name}</span>
+                        {s.reviews.length > 0 ? (
+                          <>
+                            <Stars value={s.avgRating} />
+                            <span style={{ fontSize: 12, color: "#8A8676" }}>({s.avgRating.toFixed(1)})</span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 12, color: "#8A8676" }}>Pas encore d'avis</span>
+                        )}
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: "#6B6862" }}>
+                        {s.reviews.length > 0 && <>{s.avgPrice} € · </>}
+                        {formatWalkTime(s.distance)} du bureau · {s.address}
+                        {s.reviews.length > 0 && <> · {s.reviews.length} avis</>}
+                      </p>
                     </div>
-                    <p style={{ margin: 0, fontSize: 13, color: "#6B6862" }}>
-                      {s.price} € · {formatWalkTime(s.distance)} du bureau · {s.address} · ajouté par {s.host}
-                    </p>
-                    {s.comment && <p style={{ margin: "6px 0 0", fontSize: 13, color: "#4A4740" }}>{s.comment}</p>}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {!myReview && !addingReviewHere && (
+                        <button onClick={() => openReviewForm(s.id)} style={smallButtonStyle()}>
+                          + Mon avis
+                        </button>
+                      )}
+                      {canEditSpot && (
+                        confirmingSpotDelete ? (
+                          <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "#9C3B3B" }}>Supprimer le lieu (et ses avis) ?</span>
+                            <button onClick={() => deleteSpot(s.id)} style={{ padding: "7px 12px", fontSize: 12, fontWeight: 500, background: "#9C3B3B", color: "#FFFFFF", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>Oui</button>
+                            <button onClick={() => setConfirmDeleteSpotId(null)} style={smallButtonStyle()}>Annuler</button>
+                          </span>
+                        ) : (
+                          <>
+                            <button onClick={() => openPlaceForm(s)} aria-label={`Modifier le lieu ${s.name}`} style={smallButtonStyle()}>✎ Lieu</button>
+                            <button onClick={() => setConfirmDeleteSpotId(s.id)} aria-label={`Supprimer le lieu ${s.name}`} style={smallButtonStyle()}>✕ Lieu</button>
+                          </>
+                        )
+                      )}
+                    </div>
                   </div>
-                  {canEdit && (
-                    confirming ? (
-                      <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <span style={{ fontSize: 12, color: "#9C3B3B" }}>Supprimer ?</span>
-                        <button onClick={() => deleteSpot(s.id)} style={{ padding: "7px 12px", fontSize: 12, fontWeight: 500, background: "#9C3B3B", color: "#FFFFFF", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>Oui</button>
-                        <button onClick={() => setConfirmDeleteId(null)} style={{ padding: "7px 12px", fontSize: 12, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>Annuler</button>
-                      </span>
-                    ) : (
-                      <span style={{ display: "flex", gap: 6 }}>
-                        <button
-                          onClick={() => openForm(s)}
-                          aria-label={`Modifier ${s.name}`}
-                          style={{ padding: "8px 10px", fontSize: 13, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer" }}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(s.id)}
-                          aria-label={`Supprimer ${s.name}`}
-                          style={{ padding: "8px 10px", fontSize: 13, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer" }}
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    )
+
+                  {s.reviews.map((r) => {
+                    const canEditReview = r.host_id === user.id || isAdmin;
+                    const confirmingReviewDelete = confirmDeleteReviewId === r.id;
+                    return (
+                      <div key={r.id} className="review-row">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: 180 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13, fontWeight: 500 }}>{r.host}</span>
+                              <Stars value={r.rating} />
+                              <span style={{ fontSize: 12, color: "#8A8676" }}>{r.price} €</span>
+                            </div>
+                            {r.comment && <p style={{ margin: "4px 0 0", fontSize: 13, color: "#4A4740" }}>{r.comment}</p>}
+                          </div>
+                          {canEditReview && (
+                            confirmingReviewDelete ? (
+                              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                <span style={{ fontSize: 12, color: "#9C3B3B" }}>Supprimer ?</span>
+                                <button onClick={() => deleteReview(r.id)} style={{ padding: "6px 10px", fontSize: 12, fontWeight: 500, background: "#9C3B3B", color: "#FFFFFF", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>Oui</button>
+                                <button onClick={() => setConfirmDeleteReviewId(null)} style={smallButtonStyle()}>Annuler</button>
+                              </span>
+                            ) : (
+                              <span style={{ display: "flex", gap: 6 }}>
+                                <button onClick={() => openReviewForm(s.id, r)} aria-label={`Modifier l'avis de ${r.host}`} style={smallButtonStyle()}>✎</button>
+                                <button onClick={() => setConfirmDeleteReviewId(r.id)} aria-label={`Supprimer l'avis de ${r.host}`} style={smallButtonStyle()}>✕</button>
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {addingReviewHere && (
+                    <div className="review-row">
+                      <form onSubmit={handleReviewSubmit}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
+                          <div>
+                            <label htmlFor="rf-price" style={labelStyle}>Prix (€)</label>
+                            <input
+                              id="rf-price"
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={reviewForm.price}
+                              onChange={(e) => updateReviewForm("price", e.target.value)}
+                              style={inputStyle}
+                            />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Ta note</label>
+                            <StarPicker value={reviewForm.rating} onChange={(n) => updateReviewForm("rating", n)} />
+                          </div>
+                          <div style={{ gridColumn: "1 / -1" }}>
+                            <label htmlFor="rf-comment" style={labelStyle}>Ton avis (optionnel)</label>
+                            <textarea
+                              id="rf-comment"
+                              rows={2}
+                              placeholder="Qu'est-ce que tu recommandes, l'ambiance, le prix…"
+                              value={reviewForm.comment}
+                              onChange={(e) => updateReviewForm("comment", e.target.value)}
+                              style={{ ...inputStyle, resize: "vertical" }}
+                            />
+                          </div>
+                        </div>
+                        {reviewFormErr && <p role="alert" style={{ color: "#9C3B3B", fontSize: 13, margin: "0 0 10px" }}>{reviewFormErr}</p>}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            type="submit"
+                            disabled={reviewSaving}
+                            style={{ padding: "8px 14px", fontSize: 13, fontWeight: 500, background: "#2B2A28", color: "#F7F3EC", border: "none", borderRadius: 6, cursor: reviewSaving ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif" }}
+                          >
+                            {reviewSaving ? "Enregistrement…" : editingReviewId ? "Enregistrer" : "Publier mon avis"}
+                          </button>
+                          <button type="button" onClick={closeReviewForm} style={smallButtonStyle()}>
+                            Annuler
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   )}
                 </div>
               );
