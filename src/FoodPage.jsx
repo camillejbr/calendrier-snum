@@ -130,6 +130,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formErr, setFormErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -195,12 +196,26 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  function openForm() {
+  function openForm(spot = null) {
     setShowForm(true);
-    setForm(emptyForm);
     setFormErr("");
-    setGeoResult(null);
     setSuggestions([]);
+    if (spot) {
+      setEditingId(spot.id);
+      setForm({
+        name: spot.name,
+        type: spot.type,
+        address: spot.address,
+        price: String(spot.price),
+        rating: spot.rating,
+        comment: spot.comment || "",
+      });
+      setGeoResult({ lat: spot.lat, lng: spot.lng, displayName: spot.address });
+    } else {
+      setEditingId(null);
+      setForm(emptyForm);
+      setGeoResult(null);
+    }
   }
 
   function selectSuggestion(s) {
@@ -230,7 +245,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("food_spots").insert({
+    const payload = {
       name: form.name.trim(),
       type: form.type,
       address: form.address.trim(),
@@ -239,8 +254,10 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       price: priceNum,
       rating: form.rating,
       comment: form.comment.trim() || null,
-      host: profileName,
-    });
+    };
+    const { error } = editingId
+      ? await supabase.from("food_spots").update(payload).eq("id", editingId)
+      : await supabase.from("food_spots").insert({ ...payload, host: profileName });
     setSaving(false);
     if (error) {
       console.error(error);
@@ -248,6 +265,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       return;
     }
     setShowForm(false);
+    setEditingId(null);
     loadSpots();
   }
 
@@ -313,7 +331,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>Autour du bureau, {OFFICE_LABEL}.</p>
         </div>
         <button
-          onClick={openForm}
+          onClick={() => openForm()}
           style={{
             padding: "10px 18px",
             fontSize: 14,
@@ -339,6 +357,9 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
 
       {showForm && (
         <div style={{ background: "#FFFFFF", border: "1px solid #E4DFD1", borderRadius: 10, padding: 20, marginBottom: 24 }}>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 18, margin: "0 0 14px" }}>
+            {editingId ? "Modifier le lieu" : "Ajouter un lieu"}
+          </h2>
           <form onSubmit={handleSubmit}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
               <div style={{ gridColumn: "1 / -1" }}>
@@ -448,11 +469,11 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                 disabled={saving}
                 style={{ padding: "9px 16px", fontSize: 14, fontWeight: 500, background: "#2B2A28", color: "#F7F3EC", border: "none", borderRadius: 6, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif" }}
               >
-                {saving ? "Publication…" : "Publier"}
+                {saving ? "Enregistrement…" : editingId ? "Enregistrer les modifications" : "Publier"}
               </button>
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={() => { setShowForm(false); setEditingId(null); }}
                 style={{ padding: "9px 16px", fontSize: 14, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
               >
                 Annuler
@@ -520,7 +541,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {filtered.map((s) => {
               const t = FOOD_TYPES[s.type] || FALLBACK_TYPE;
-              const canDelete = s.host_id === user.id || isAdmin;
+              const canEdit = s.host_id === user.id || isAdmin;
               const confirming = confirmDeleteId === s.id;
               return (
                 <div
@@ -550,7 +571,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                     </p>
                     {s.comment && <p style={{ margin: "6px 0 0", fontSize: 13, color: "#4A4740" }}>{s.comment}</p>}
                   </div>
-                  {canDelete && (
+                  {canEdit && (
                     confirming ? (
                       <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
                         <span style={{ fontSize: 12, color: "#9C3B3B" }}>Supprimer ?</span>
@@ -558,13 +579,22 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                         <button onClick={() => setConfirmDeleteId(null)} style={{ padding: "7px 12px", fontSize: 12, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>Annuler</button>
                       </span>
                     ) : (
-                      <button
-                        onClick={() => setConfirmDeleteId(s.id)}
-                        aria-label={`Supprimer ${s.name}`}
-                        style={{ padding: "8px 10px", fontSize: 13, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer" }}
-                      >
-                        ✕
-                      </button>
+                      <span style={{ display: "flex", gap: 6 }}>
+                        <button
+                          onClick={() => openForm(s)}
+                          aria-label={`Modifier ${s.name}`}
+                          style={{ padding: "8px 10px", fontSize: 13, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer" }}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(s.id)}
+                          aria-label={`Supprimer ${s.name}`}
+                          style={{ padding: "8px 10px", fontSize: 13, background: "transparent", color: "#6B6862", border: "1px solid #D8D3C6", borderRadius: 6, cursor: "pointer" }}
+                        >
+                          ✕
+                        </button>
+                      </span>
                     )
                   )}
                 </div>
