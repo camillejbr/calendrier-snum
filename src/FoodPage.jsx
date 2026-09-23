@@ -58,8 +58,14 @@ function metersToWalkMinutes(m) {
   return Math.max(1, Math.round(m / WALK_M_PER_MIN));
 }
 
-function formatWalkTime(m) {
-  return `${metersToWalkMinutes(m)} min à pied`;
+// walkSeconds vient d'un vrai itinéraire piéton (IGN) quand disponible ; sinon,
+// estimation à vol d'oiseau (haversine) le temps que l'itinéraire réel se charge.
+function walkMinutesFor(distanceM, walkSeconds) {
+  return walkSeconds != null ? Math.max(1, Math.round(walkSeconds / 60)) : metersToWalkMinutes(distanceM);
+}
+
+function formatWalkTime(distanceM, walkSeconds) {
+  return `${walkMinutesFor(distanceM, walkSeconds)} min à pied`;
 }
 
 async function searchAddress(query, limit = 5) {
@@ -70,6 +76,16 @@ async function searchAddress(query, limit = 5) {
   if (!res.ok) throw new Error("geocode failed");
   const data = await res.json();
   return data.map((d) => ({ lat: parseFloat(d.lat), lng: parseFloat(d.lon), displayName: d.display_name }));
+}
+
+// Vrai itinéraire piéton (rues réelles), via l'API navigation de la Géoplateforme IGN
+// (gratuite, sans clé — même fournisseur que les tuiles de la carte).
+async function fetchWalkRoute(lat, lng) {
+  const url = `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&start=${OFFICE_LNG},${OFFICE_LAT}&end=${lng},${lat}&profile=pedestrian&optimization=fastest&format=json`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("itinerary failed");
+  const data = await res.json();
+  return { distanceM: data.distance, durationS: data.duration };
 }
 
 function pinIcon(color, emoji, big) {
@@ -226,6 +242,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [sortBy, setSortBy] = useState("distance"); // distance | rating | recent
   const [mapBounds, setMapBounds] = useState(null);
 
+  // Itinéraires piétons réels (IGN), en cache par lieu : { [spotId]: { lat, lng, distanceM, durationS } }.
+  // Clé sur lat/lng pour se réinvalider tout seul dès qu'une adresse est modifiée.
+  const [routeCache, setRouteCache] = useState({});
+  // Aperçu d'itinéraire pour l'adresse en cours de saisie dans le formulaire (avant sauvegarde).
+  const [previewRoute, setPreviewRoute] = useState(null);
+
   async function loadData() {
     const [{ data: spotsData, error: spotsErr }, { data: reviewsData, error: reviewsErr }] = await Promise.all([
       supabase.from("food_spots").select("*"),
@@ -239,6 +261,49 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Récupère l'itinéraire piéton réel pour tout lieu absent du cache ou dont l'adresse
+  // (lat/lng) a changé depuis la dernière fois — donc se réactualise tout seul quand
+  // quelqu'un modifie l'adresse d'un lieu.
+  useEffect(() => {
+    let cancelled = false;
+    async function syncRoutes() {
+      for (const s of spots) {
+        const cached = routeCache[s.id];
+        if (cached && cached.lat === s.lat && cached.lng === s.lng) continue;
+        try {
+          const { distanceM, durationS } = await fetchWalkRoute(s.lat, s.lng);
+          if (cancelled) return;
+          setRouteCache((prev) => ({ ...prev, [s.id]: { lat: s.lat, lng: s.lng, distanceM, durationS } }));
+        } catch {
+          // Pas d'itinéraire réel dispo (service indisponible, point injoignable à pied…) :
+          // on garde silencieusement l'estimation à vol d'oiseau pour ce lieu.
+        }
+      }
+    }
+    syncRoutes();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spots]);
+
+  // Aperçu d'itinéraire réel pendant la saisie du formulaire (adresse pas encore sauvegardée).
+  useEffect(() => {
+    if (!geoResult) {
+      setPreviewRoute(null);
+      return;
+    }
+    let cancelled = false;
+    fetchWalkRoute(geoResult.lat, geoResult.lng)
+      .then(({ distanceM, durationS }) => {
+        if (!cancelled) setPreviewRoute({ lat: geoResult.lat, lng: geoResult.lng, distanceM, durationS });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [geoResult]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -267,16 +332,19 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       const avgRating = spotReviews.length ? spotReviews.reduce((sum, r) => sum + r.rating, 0) / spotReviews.length : 0;
       const avgPrice = spotReviews.length ? Math.round(spotReviews.reduce((sum, r) => sum + r.price, 0) / spotReviews.length) : 0;
-      const distance = haversineMeters(OFFICE_LAT, OFFICE_LNG, s.lat, s.lng);
-      return { ...s, reviews: spotReviews, avgRating, avgPrice, distance };
+      const route = routeCache[s.id];
+      const hasRealRoute = route && route.lat === s.lat && route.lng === s.lng;
+      const distance = hasRealRoute ? route.distanceM : haversineMeters(OFFICE_LAT, OFFICE_LNG, s.lat, s.lng);
+      const walkSeconds = hasRealRoute ? route.durationS : null;
+      return { ...s, reviews: spotReviews, avgRating, avgPrice, distance, walkSeconds };
     });
-  }, [spots, reviews]);
+  }, [spots, reviews, routeCache]);
 
   const filtered = useMemo(() => {
     let list = spotsWithReviews;
     if (typeFilter) list = list.filter((s) => s.type === typeFilter);
     if (priceFilter) list = list.filter((s) => s.reviews.length > 0 && s.avgPrice <= Number(priceFilter));
-    if (distanceFilter) list = list.filter((s) => metersToWalkMinutes(s.distance) < Number(distanceFilter));
+    if (distanceFilter) list = list.filter((s) => walkMinutesFor(s.distance, s.walkSeconds) < Number(distanceFilter));
     list = [...list];
     if (sortBy === "distance") list.sort((a, b) => a.distance - b.distance);
     else if (sortBy === "rating") list.sort((a, b) => b.avgRating - a.avgRating);
@@ -625,7 +693,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                 )}
                 {geoResult && geoResult.displayName === placeForm.address && (
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#3F7A5C" }}>
-                    ✓ Adresse repérée, à {formatWalkTime(haversineMeters(OFFICE_LAT, OFFICE_LNG, geoResult.lat, geoResult.lng))} du bureau
+                    ✓ Adresse repérée, à{" "}
+                    {formatWalkTime(
+                      haversineMeters(OFFICE_LAT, OFFICE_LNG, geoResult.lat, geoResult.lng),
+                      previewRoute && previewRoute.lat === geoResult.lat && previewRoute.lng === geoResult.lng ? previewRoute.durationS : null
+                    )}{" "}
+                    du bureau
                   </p>
                 )}
               </div>
@@ -767,7 +840,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                       </div>
                       <p style={{ margin: 0, fontSize: 13, color: "#6B6862" }}>
                         {s.reviews.length > 0 && <>{s.avgPrice} € · </>}
-                        {formatWalkTime(s.distance)} du bureau · {s.address}
+                        {formatWalkTime(s.distance, s.walkSeconds)} du bureau · {s.address}
                       </p>
                       {s.reviews.length > 0 && (
                         <button
@@ -932,12 +1005,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   <br />
                   {s.reviews.length > 0 ? (
                     <>
-                      {s.avgPrice} € · <Stars value={s.avgRating} /> · {formatWalkTime(s.distance)}
+                      {s.avgPrice} € · <Stars value={s.avgRating} /> · {formatWalkTime(s.distance, s.walkSeconds)}
                       <br />
                       {s.reviews.length} avis
                     </>
                   ) : (
-                    <>Pas encore d'avis · {formatWalkTime(s.distance)}</>
+                    <>Pas encore d'avis · {formatWalkTime(s.distance, s.walkSeconds)}</>
                   )}
                 </Popup>
               </Marker>
