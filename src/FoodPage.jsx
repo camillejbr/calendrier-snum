@@ -749,19 +749,29 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                       <p style={{ margin: 0, fontSize: 13, color: "#6B6862" }}>
                         {s.reviews.length > 0 && <>{s.avgPrice} € · </>}
                         {formatWalkTime(s.distance)} du bureau · {s.address}
-                        {s.reviews.length > 0 && (
-                          <>
-                            {" · "}
-                            <button
-                              type="button"
-                              onClick={() => toggleReviews(s.id)}
-                              style={{ background: "none", border: "none", padding: 0, color: "#6B6862", textDecoration: "underline", cursor: "pointer", fontSize: 13, fontFamily: "'Inter', sans-serif" }}
-                            >
-                              {expandedSpots.has(s.id) ? "Masquer les avis ▴" : `Voir les ${s.reviews.length} avis ▾`}
-                            </button>
-                          </>
-                        )}
                       </p>
+                      {s.reviews.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleReviews(s.id)}
+                          style={{
+                            marginTop: 8,
+                            padding: "6px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: expandedSpots.has(s.id) ? "#EDE0C8" : "#FBF0E3",
+                            color: "#9C5A1E",
+                            border: "1px solid #E4C9A0",
+                            borderRadius: 999,
+                            cursor: "pointer",
+                            fontFamily: "'Inter', sans-serif",
+                          }}
+                        >
+                          {expandedSpots.has(s.id)
+                            ? s.reviews.length === 1 ? "Masquer l'avis ▴" : "Masquer les avis ▴"
+                            : s.reviews.length === 1 ? "Voir l'avis ▾" : `Voir les ${s.reviews.length} avis ▾`}
+                        </button>
+                      )}
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {!myReview && !addingReviewHere && (
