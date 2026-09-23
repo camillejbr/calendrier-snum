@@ -754,8 +754,8 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                           </span>
                         ) : (
                           <>
-                            <button onClick={() => openPlaceForm(s)} aria-label={`Modifier le lieu ${s.name}`} style={smallButtonStyle()}>✎ Lieu</button>
-                            <button onClick={() => setConfirmDeleteSpotId(s.id)} aria-label={`Supprimer le lieu ${s.name}`} style={smallButtonStyle()}>✕ Lieu</button>
+                            <button onClick={() => openPlaceForm(s)} aria-label={`Modifier le lieu ${s.name}`} style={smallButtonStyle()}>Modifier le lieu</button>
+                            <button onClick={() => setConfirmDeleteSpotId(s.id)} aria-label={`Supprimer le lieu ${s.name}`} style={smallButtonStyle()}>✕</button>
                           </>
                         )
                       )}
