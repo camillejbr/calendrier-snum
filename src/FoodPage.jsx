@@ -461,6 +461,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         .review-row { border-top: 1px solid #EDE8DA; padding: 10px 0 0; margin-top: 10px; }
         .food-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
         .food-map { position: sticky; top: 20px; height: 560px; border-radius: 10px; overflow: hidden; border: 1px solid #EDE8DA; }
+        .food-map .leaflet-tile-pane { filter: grayscale(0.45) sepia(0.12) contrast(0.92) brightness(1.08) saturate(0.85); }
         @media (max-width: 860px) {
           .food-layout { grid-template-columns: 1fr; }
           .food-map { position: static; height: 320px; order: -1; }
@@ -829,8 +830,8 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           <MapContainer center={[OFFICE_LAT, OFFICE_LNG]} zoom={15} style={{ height: "100%", width: "100%" }}>
             <MapBoundsWatcher onChange={setMapBounds} />
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.ign.fr">IGN-F/Géoportail</a>'
+              url="https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png"
             />
             <Marker position={[OFFICE_LAT, OFFICE_LNG]} icon={officeIcon}>
               <Popup>{OFFICE_LABEL}</Popup>
