@@ -20,7 +20,7 @@ const FOOD_TYPES = {
 // Fallback purely defensive, for legacy data that predates the current type list.
 const FALLBACK_TYPE = { label: "Autre", icon: "📍", color: "#6B6862" };
 
-const WALK_M_PER_MIN = 80; // ~4.8 km/h
+const WALK_M_PER_MIN = 75; // ~4,5 km/h — calé sur des temps Google Maps de référence
 
 const PRICE_OPTIONS = [
   { value: "", label: "Tous prix" },
@@ -54,18 +54,17 @@ function normalizeName(str) {
     .replace(/[̀-ͯ]/g, "");
 }
 
+// distanceM vient soit du vrai itinéraire piéton IGN (rues réelles) quand disponible,
+// soit d'une estimation à vol d'oiseau (haversine) le temps qu'il se charge — dans les
+// deux cas la durée est calculée nous-mêmes avec WALK_M_PER_MIN : la durée renvoyée par
+// l'API IGN elle-même suppose une vitesse de marche à ~3,6 km/h, beaucoup trop lente
+// (comparé à des temps Google Maps de référence), donc on ne s'en sert pas.
 function metersToWalkMinutes(m) {
   return Math.max(1, Math.round(m / WALK_M_PER_MIN));
 }
 
-// walkSeconds vient d'un vrai itinéraire piéton (IGN) quand disponible ; sinon,
-// estimation à vol d'oiseau (haversine) le temps que l'itinéraire réel se charge.
-function walkMinutesFor(distanceM, walkSeconds) {
-  return walkSeconds != null ? Math.max(1, Math.round(walkSeconds / 60)) : metersToWalkMinutes(distanceM);
-}
-
-function formatWalkTime(distanceM, walkSeconds) {
-  return `${walkMinutesFor(distanceM, walkSeconds)} min à pied`;
+function formatWalkTime(distanceM) {
+  return `${metersToWalkMinutes(distanceM)} min à pied`;
 }
 
 async function searchAddress(query, limit = 5) {
@@ -78,14 +77,17 @@ async function searchAddress(query, limit = 5) {
   return data.map((d) => ({ lat: parseFloat(d.lat), lng: parseFloat(d.lon), displayName: d.display_name }));
 }
 
-// Vrai itinéraire piéton (rues réelles), via l'API navigation de la Géoplateforme IGN
-// (gratuite, sans clé — même fournisseur que les tuiles de la carte).
+// Vraie distance de marche (le long des rues, pas à vol d'oiseau), via l'API navigation
+// de la Géoplateforme IGN (gratuite, sans clé — même fournisseur que les tuiles de la
+// carte). Sa propre estimation de durée (data.duration) n'est pas utilisée : elle
+// suppose une vitesse de marche à ~3,6 km/h, trop lente par rapport à des temps Google
+// Maps de référence — la durée affichée est recalculée nous-mêmes (metersToWalkMinutes).
 async function fetchWalkRoute(lat, lng) {
   const url = `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&start=${OFFICE_LNG},${OFFICE_LAT}&end=${lng},${lat}&profile=pedestrian&optimization=fastest&format=json`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("itinerary failed");
   const data = await res.json();
-  return { distanceM: data.distance, durationS: data.duration };
+  return { distanceM: data.distance };
 }
 
 function pinIcon(color, emoji, big) {
@@ -242,7 +244,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [sortBy, setSortBy] = useState("distance"); // distance | rating | recent
   const [mapBounds, setMapBounds] = useState(null);
 
-  // Itinéraires piétons réels (IGN), en cache par lieu : { [spotId]: { lat, lng, distanceM, durationS } }.
+  // Distances de marche réelles (IGN), en cache par lieu : { [spotId]: { lat, lng, distanceM } }.
   // Clé sur lat/lng pour se réinvalider tout seul dès qu'une adresse est modifiée.
   const [routeCache, setRouteCache] = useState({});
   // Aperçu d'itinéraire pour l'adresse en cours de saisie dans le formulaire (avant sauvegarde).
@@ -272,9 +274,9 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         const cached = routeCache[s.id];
         if (cached && cached.lat === s.lat && cached.lng === s.lng) continue;
         try {
-          const { distanceM, durationS } = await fetchWalkRoute(s.lat, s.lng);
+          const { distanceM } = await fetchWalkRoute(s.lat, s.lng);
           if (cancelled) return;
-          setRouteCache((prev) => ({ ...prev, [s.id]: { lat: s.lat, lng: s.lng, distanceM, durationS } }));
+          setRouteCache((prev) => ({ ...prev, [s.id]: { lat: s.lat, lng: s.lng, distanceM } }));
         } catch {
           // Pas d'itinéraire réel dispo (service indisponible, point injoignable à pied…) :
           // on garde silencieusement l'estimation à vol d'oiseau pour ce lieu.
@@ -296,8 +298,8 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     }
     let cancelled = false;
     fetchWalkRoute(geoResult.lat, geoResult.lng)
-      .then(({ distanceM, durationS }) => {
-        if (!cancelled) setPreviewRoute({ lat: geoResult.lat, lng: geoResult.lng, distanceM, durationS });
+      .then(({ distanceM }) => {
+        if (!cancelled) setPreviewRoute({ lat: geoResult.lat, lng: geoResult.lng, distanceM });
       })
       .catch(() => {});
     return () => {
@@ -335,8 +337,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       const route = routeCache[s.id];
       const hasRealRoute = route && route.lat === s.lat && route.lng === s.lng;
       const distance = hasRealRoute ? route.distanceM : haversineMeters(OFFICE_LAT, OFFICE_LNG, s.lat, s.lng);
-      const walkSeconds = hasRealRoute ? route.durationS : null;
-      return { ...s, reviews: spotReviews, avgRating, avgPrice, distance, walkSeconds };
+      return { ...s, reviews: spotReviews, avgRating, avgPrice, distance };
     });
   }, [spots, reviews, routeCache]);
 
@@ -344,7 +345,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     let list = spotsWithReviews;
     if (typeFilter) list = list.filter((s) => s.type === typeFilter);
     if (priceFilter) list = list.filter((s) => s.reviews.length > 0 && s.avgPrice <= Number(priceFilter));
-    if (distanceFilter) list = list.filter((s) => walkMinutesFor(s.distance, s.walkSeconds) < Number(distanceFilter));
+    if (distanceFilter) list = list.filter((s) => metersToWalkMinutes(s.distance) < Number(distanceFilter));
     list = [...list];
     if (sortBy === "distance") list.sort((a, b) => a.distance - b.distance);
     else if (sortBy === "rating") list.sort((a, b) => b.avgRating - a.avgRating);
@@ -695,8 +696,9 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#3F7A5C" }}>
                     ✓ Adresse repérée, à{" "}
                     {formatWalkTime(
-                      haversineMeters(OFFICE_LAT, OFFICE_LNG, geoResult.lat, geoResult.lng),
-                      previewRoute && previewRoute.lat === geoResult.lat && previewRoute.lng === geoResult.lng ? previewRoute.durationS : null
+                      previewRoute && previewRoute.lat === geoResult.lat && previewRoute.lng === geoResult.lng
+                        ? previewRoute.distanceM
+                        : haversineMeters(OFFICE_LAT, OFFICE_LNG, geoResult.lat, geoResult.lng)
                     )}{" "}
                     du bureau
                   </p>
@@ -840,7 +842,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                       </div>
                       <p style={{ margin: 0, fontSize: 13, color: "#6B6862" }}>
                         {s.reviews.length > 0 && <>{s.avgPrice} € · </>}
-                        {formatWalkTime(s.distance, s.walkSeconds)} du bureau · {s.address}
+                        {formatWalkTime(s.distance)} du bureau · {s.address}
                       </p>
                       {s.reviews.length > 0 && (
                         <button
@@ -1005,12 +1007,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   <br />
                   {s.reviews.length > 0 ? (
                     <>
-                      {s.avgPrice} € · <Stars value={s.avgRating} /> · {formatWalkTime(s.distance, s.walkSeconds)}
+                      {s.avgPrice} € · <Stars value={s.avgRating} /> · {formatWalkTime(s.distance)}
                       <br />
                       {s.reviews.length} avis
                     </>
                   ) : (
-                    <>Pas encore d'avis · {formatWalkTime(s.distance, s.walkSeconds)}</>
+                    <>Pas encore d'avis · {formatWalkTime(s.distance)}</>
                   )}
                 </Popup>
               </Marker>
