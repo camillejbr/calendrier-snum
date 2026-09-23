@@ -440,6 +440,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         .address-suggestions li:last-child button { border-bottom: none; }
         .address-suggestions li button:hover { background: #F7F3EC; }
         .review-row { border-top: 1px solid #EDE8DA; padding: 10px 0 0; margin-top: 10px; }
+        .food-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
+        .food-map { position: sticky; top: 20px; height: 560px; border-radius: 10px; overflow: hidden; border: 1px solid #EDE8DA; }
+        @media (max-width: 860px) {
+          .food-layout { grid-template-columns: 1fr; }
+          .food-map { position: static; height: 320px; order: -1; }
+        }
       `}</style>
 
       <button
@@ -629,44 +635,17 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         </select>
       </div>
 
-      <div style={{ height: 380, borderRadius: 10, overflow: "hidden", border: "1px solid #EDE8DA", marginBottom: 20 }}>
-        <MapContainer center={[OFFICE_LAT, OFFICE_LNG]} zoom={15} style={{ height: "100%", width: "100%" }}>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <Marker position={[OFFICE_LAT, OFFICE_LNG]} icon={officeIcon}>
-            <Popup>{OFFICE_LABEL}</Popup>
-          </Marker>
-          {filtered.map((s) => (
-            <Marker key={s.id} position={[s.lat, s.lng]} icon={pinIcon((FOOD_TYPES[s.type] || FALLBACK_TYPE).color, (FOOD_TYPES[s.type] || FALLBACK_TYPE).icon)}>
-              <Popup>
-                <strong>{s.name}</strong>
-                <br />
-                {s.reviews.length > 0 ? (
-                  <>
-                    {s.avgPrice} € · <Stars value={s.avgRating} /> · {formatWalkTime(s.distance)}
-                    <br />
-                    {s.reviews.length} avis
-                  </>
-                ) : (
-                  <>Pas encore d'avis · {formatWalkTime(s.distance)}</>
-                )}
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
-      </div>
+      <div className="food-layout">
+        <div className="food-list">
+          {loading && <p style={{ color: "#6B6862", fontSize: 14 }}>Chargement…</p>}
 
-      {loading && <p style={{ color: "#6B6862", fontSize: 14 }}>Chargement…</p>}
-
-      {!loading && (
-        <>
-          <p style={{ fontSize: 12, color: "#8A8676", margin: "0 0 12px" }}>
-            {filtered.length} lieu{filtered.length > 1 ? "x" : ""}
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtered.map((s) => {
+          {!loading && (
+            <>
+              <p style={{ fontSize: 12, color: "#8A8676", margin: "0 0 12px" }}>
+                {filtered.length} lieu{filtered.length > 1 ? "x" : ""}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {filtered.map((s) => {
               const t = FOOD_TYPES[s.type] || FALLBACK_TYPE;
               const canEditSpot = s.host_id === user.id || isAdmin;
               const confirmingSpotDelete = confirmDeleteSpotId === s.id;
@@ -816,9 +795,40 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                 Aucun lieu pour ces filtres. Sois le premier à en ajouter un !
               </p>
             )}
-          </div>
-        </>
-      )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="food-map">
+          <MapContainer center={[OFFICE_LAT, OFFICE_LNG]} zoom={15} style={{ height: "100%", width: "100%" }}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <Marker position={[OFFICE_LAT, OFFICE_LNG]} icon={officeIcon}>
+              <Popup>{OFFICE_LABEL}</Popup>
+            </Marker>
+            {filtered.map((s) => (
+              <Marker key={s.id} position={[s.lat, s.lng]} icon={pinIcon((FOOD_TYPES[s.type] || FALLBACK_TYPE).color, (FOOD_TYPES[s.type] || FALLBACK_TYPE).icon)}>
+                <Popup>
+                  <strong>{s.name}</strong>
+                  <br />
+                  {s.reviews.length > 0 ? (
+                    <>
+                      {s.avgPrice} € · <Stars value={s.avgRating} /> · {formatWalkTime(s.distance)}
+                      <br />
+                      {s.reviews.length} avis
+                    </>
+                  ) : (
+                    <>Pas encore d'avis · {formatWalkTime(s.distance)}</>
+                  )}
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
+      </div>
     </main>
   );
 }
