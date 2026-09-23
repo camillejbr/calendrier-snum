@@ -203,6 +203,9 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [reviewFormErr, setReviewFormErr] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
 
+  // Ids des lieux dont la liste d'avis est dépliée (repliée par défaut pour ne pas polluer la liste).
+  const [expandedSpots, setExpandedSpots] = useState(() => new Set());
+
   const [typeFilter, setTypeFilter] = useState("");
   const [priceFilter, setPriceFilter] = useState("");
   const [distanceFilter, setDistanceFilter] = useState("");
@@ -401,10 +404,20 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     setReviewForm((f) => ({ ...f, [field]: value }));
   }
 
+  function toggleReviews(spotId) {
+    setExpandedSpots((prev) => {
+      const next = new Set(prev);
+      if (next.has(spotId)) next.delete(spotId);
+      else next.add(spotId);
+      return next;
+    });
+  }
+
   function openReviewForm(spotId, existingReview = null) {
     setReviewFormSpotId(spotId);
     setShowPlaceForm(false);
     setReviewFormErr("");
+    setExpandedSpots((prev) => new Set(prev).add(spotId));
     if (existingReview) {
       setEditingReviewId(existingReview.id);
       setReviewForm({ price: String(existingReview.price), rating: existingReview.rating, comment: existingReview.comment || "" });
@@ -736,7 +749,18 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                       <p style={{ margin: 0, fontSize: 13, color: "#6B6862" }}>
                         {s.reviews.length > 0 && <>{s.avgPrice} € · </>}
                         {formatWalkTime(s.distance)} du bureau · {s.address}
-                        {s.reviews.length > 0 && <> · {s.reviews.length} avis</>}
+                        {s.reviews.length > 0 && (
+                          <>
+                            {" · "}
+                            <button
+                              type="button"
+                              onClick={() => toggleReviews(s.id)}
+                              style={{ background: "none", border: "none", padding: 0, color: "#6B6862", textDecoration: "underline", cursor: "pointer", fontSize: 13, fontFamily: "'Inter', sans-serif" }}
+                            >
+                              {expandedSpots.has(s.id) ? "Masquer les avis ▴" : `Voir les ${s.reviews.length} avis ▾`}
+                            </button>
+                          </>
+                        )}
                       </p>
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -762,7 +786,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                     </div>
                   </div>
 
-                  {s.reviews.map((r) => {
+                  {expandedSpots.has(s.id) && s.reviews.map((r) => {
                     const canEditReview = r.host_id === user.id || isAdmin;
                     const confirmingReviewDelete = confirmDeleteReviewId === r.id;
                     return (
