@@ -58,12 +58,14 @@ Deux projets distincts, même organisation :
 | | Production | Staging |
 |---|---|---|
 | Ref | `trwisfwbkalhvnoeltym` | `kukeajqfkrnbgqaiezrj` |
-| Usage | Site en ligne | Tests locaux uniquement |
+| Usage | Site en ligne | Tests locaux (**abandonné pour l'instant**, voir ci-dessous) |
 | Edge Function `notify` | ✅ déployée | ❌ non déployée |
 | SMTP configuré (emails d'auth) | ✅ | ❌ (limite par défaut Supabase très basse) |
 | Règles d'inscription (mot de passe d'accès + blocage `@culture.gouv.fr`) et `is_member()` | ⏳ script prêt (`supabase/migrations/20261006_open_signup_with_access_code.sql`), à appliquer | ❌ non migré (projet en pause, ancien schéma) |
 
-Le staging sert uniquement à prévisualiser des changements d'interface/schéma sans toucher aux vraies données d'équipe — il n'a pas toute l'infra d'envoi d'email.
+⚠️ **Statut actuel du staging** : le projet est en pause et ne peut pas être réactivé tant que le compte Supabase est limité à 2 projets gratuits actifs (occupés par la prod et par un autre projet, `planning-dev`). Il a en plus l'ancien schéma (règles `@culture.gouv.fr`, ni mot de passe d'accès ni `is_member()`) : pour le réutiliser, il faudrait le réactiver puis y appliquer `supabase/migrations/20261006_open_signup_with_access_code.sql`. En attendant, `.env.local` pointe sur la **prod** : tout test en local modifie les vraies données.
+
+Le staging servait uniquement à prévisualiser des changements d'interface/schéma sans toucher aux vraies données d'équipe — il n'a pas toute l'infra d'envoi d'email.
 
 ## Frontend — structure
 
