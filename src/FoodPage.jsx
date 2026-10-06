@@ -1,12 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { supabase } from "./supabaseClient.js";
 
-const OFFICE_LAT = 48.8635971;
-const OFFICE_LNG = 2.3376992;
-const OFFICE_LABEL = "3 rue de Valois (bureau)";
+// Bureaux de référence (coordonnées vérifiées via Nominatim). Valois/BE est le choix par défaut.
+const OFFICES = {
+  valois: { key: "valois", label: "Valois/BE", address: "3 rue de Valois, 75001 Paris", lat: 48.8635971, lng: 2.3376992 },
+  chapelle: { key: "chapelle", label: "La Chapelle", address: "47 rue de la Chapelle, 75018 Paris", lat: 48.8939019, lng: 2.3590676 },
+};
+const DEFAULT_OFFICE = "valois";
 
 const FOOD_TYPES = {
   italien: { label: "Italien", icon: "🍝", color: "#9C3B3B" },
@@ -67,9 +70,9 @@ function formatWalkTime(distanceM) {
   return `${metersToWalkMinutes(distanceM)} min à pied`;
 }
 
-async function searchAddress(query, limit = 5) {
+async function searchAddress(query, office, limit = 5) {
   const delta = 0.05;
-  const viewbox = [OFFICE_LNG - delta, OFFICE_LAT + delta, OFFICE_LNG + delta, OFFICE_LAT - delta].join(",");
+  const viewbox = [office.lng - delta, office.lat + delta, office.lng + delta, office.lat - delta].join(",");
   const url = `https://nominatim.openstreetmap.org/search?format=json&limit=${limit}&viewbox=${viewbox}&bounded=1&q=${encodeURIComponent(query)}`;
   const res = await fetch(url, { headers: { "Accept-Language": "fr" } });
   if (!res.ok) throw new Error("geocode failed");
@@ -82,8 +85,8 @@ async function searchAddress(query, limit = 5) {
 // carte). Sa propre estimation de durée (data.duration) n'est pas utilisée : elle
 // suppose une vitesse de marche à ~3,6 km/h, trop lente par rapport à des temps Google
 // Maps de référence — la durée affichée est recalculée nous-mêmes (metersToWalkMinutes).
-async function fetchWalkRoute(lat, lng) {
-  const url = `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&start=${OFFICE_LNG},${OFFICE_LAT}&end=${lng},${lat}&profile=pedestrian&optimization=fastest&format=json`;
+async function fetchWalkRoute(office, lat, lng) {
+  const url = `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&start=${office.lng},${office.lat}&end=${lng},${lat}&profile=pedestrian&optimization=fastest&format=json`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("itinerary failed");
   const data = await res.json();
@@ -114,6 +117,15 @@ function MapBoundsWatcher({ onChange }) {
     onChange(map.getBounds());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  return null;
+}
+
+// Recentre la carte quand on change de bureau (le `center` de MapContainer n'est lu qu'au montage).
+function MapRecenter({ lat, lng }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([lat, lng], map.getZoom());
+  }, [map, lat, lng]);
   return null;
 }
 
@@ -243,9 +255,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [distanceFilter, setDistanceFilter] = useState("");
   const [sortBy, setSortBy] = useState("distance"); // distance | rating | recent
   const [mapBounds, setMapBounds] = useState(null);
+  const [officeKey, setOfficeKey] = useState(DEFAULT_OFFICE);
+  const office = OFFICES[officeKey];
 
-  // Distances de marche réelles (IGN), en cache par lieu : { [spotId]: { lat, lng, distanceM } }.
-  // Clé sur lat/lng pour se réinvalider tout seul dès qu'une adresse est modifiée.
+  // Distances de marche réelles (IGN), en cache par bureau ET par lieu :
+  // { ["<bureau>:<spotId>"]: { lat, lng, distanceM } }. Clé sur lat/lng pour se réinvalider
+  // tout seul dès qu'une adresse est modifiée ; clé sur le bureau car la distance en dépend.
   const [routeCache, setRouteCache] = useState({});
   // Aperçu d'itinéraire pour l'adresse en cours de saisie dans le formulaire (avant sauvegarde).
   const [previewRoute, setPreviewRoute] = useState(null);
@@ -271,12 +286,13 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     let cancelled = false;
     async function syncRoutes() {
       for (const s of spots) {
-        const cached = routeCache[s.id];
+        const cacheKey = `${office.key}:${s.id}`;
+        const cached = routeCache[cacheKey];
         if (cached && cached.lat === s.lat && cached.lng === s.lng) continue;
         try {
-          const { distanceM } = await fetchWalkRoute(s.lat, s.lng);
+          const { distanceM } = await fetchWalkRoute(office, s.lat, s.lng);
           if (cancelled) return;
-          setRouteCache((prev) => ({ ...prev, [s.id]: { lat: s.lat, lng: s.lng, distanceM } }));
+          setRouteCache((prev) => ({ ...prev, [cacheKey]: { lat: s.lat, lng: s.lng, distanceM } }));
         } catch {
           // Pas d'itinéraire réel dispo (service indisponible, point injoignable à pied…) :
           // on garde silencieusement l'estimation à vol d'oiseau pour ce lieu.
@@ -288,7 +304,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spots]);
+  }, [spots, officeKey]);
 
   // Aperçu d'itinéraire réel pendant la saisie du formulaire (adresse pas encore sauvegardée).
   useEffect(() => {
@@ -297,15 +313,16 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       return;
     }
     let cancelled = false;
-    fetchWalkRoute(geoResult.lat, geoResult.lng)
+    fetchWalkRoute(office, geoResult.lat, geoResult.lng)
       .then(({ distanceM }) => {
-        if (!cancelled) setPreviewRoute({ lat: geoResult.lat, lng: geoResult.lng, distanceM });
+        if (!cancelled) setPreviewRoute({ office: office.key, lat: geoResult.lat, lng: geoResult.lng, distanceM });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [geoResult]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoResult, officeKey]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -316,7 +333,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
     debounceRef.current = setTimeout(async () => {
       setSuggestLoading(true);
       try {
-        const results = await searchAddress(placeForm.address.trim());
+        const results = await searchAddress(placeForm.address.trim(), office);
         setSuggestions(results);
       } catch {
         setSuggestions([]);
@@ -334,12 +351,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       const avgRating = spotReviews.length ? spotReviews.reduce((sum, r) => sum + r.rating, 0) / spotReviews.length : 0;
       const avgPrice = spotReviews.length ? Math.round(spotReviews.reduce((sum, r) => sum + r.price, 0) / spotReviews.length) : 0;
-      const route = routeCache[s.id];
+      const route = routeCache[`${officeKey}:${s.id}`];
       const hasRealRoute = route && route.lat === s.lat && route.lng === s.lng;
-      const distance = hasRealRoute ? route.distanceM : haversineMeters(OFFICE_LAT, OFFICE_LNG, s.lat, s.lng);
+      const distance = hasRealRoute ? route.distanceM : haversineMeters(office.lat, office.lng, s.lat, s.lng);
       return { ...s, reviews: spotReviews, avgRating, avgPrice, distance };
     });
-  }, [spots, reviews, routeCache]);
+  }, [spots, reviews, routeCache, officeKey]);
 
   const filtered = useMemo(() => {
     let list = spotsWithReviews;
@@ -609,7 +626,21 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 28, margin: "0 0 4px" }}>
             Bonnes adresses
           </h1>
-          <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>Autour du bureau, {OFFICE_LABEL}.</p>
+          <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>Temps de marche depuis {office.address}.</p>
+          <div role="group" aria-label="Bureau de référence" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            <span style={{ fontSize: 13, color: "#6B6862" }}>Bureau :</span>
+            {Object.values(OFFICES).map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                aria-pressed={officeKey === o.key}
+                onClick={() => setOfficeKey(o.key)}
+                style={chipStyle(officeKey === o.key)}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
         <button
           onClick={() => openPlaceForm()}
@@ -696,9 +727,9 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#3F7A5C" }}>
                     ✓ Adresse repérée, à{" "}
                     {formatWalkTime(
-                      previewRoute && previewRoute.lat === geoResult.lat && previewRoute.lng === geoResult.lng
+                      previewRoute && previewRoute.office === office.key && previewRoute.lat === geoResult.lat && previewRoute.lng === geoResult.lng
                         ? previewRoute.distanceM
-                        : haversineMeters(OFFICE_LAT, OFFICE_LNG, geoResult.lat, geoResult.lng)
+                        : haversineMeters(office.lat, office.lng, geoResult.lat, geoResult.lng)
                     )}{" "}
                     du bureau
                   </p>
@@ -991,14 +1022,15 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
 
         <div className="food-map">
           <h2 style={srOnlyStyle}>Carte des lieux</h2>
-          <MapContainer center={[OFFICE_LAT, OFFICE_LNG]} zoom={15} style={{ height: "100%", width: "100%" }}>
+          <MapContainer center={[office.lat, office.lng]} zoom={15} style={{ height: "100%", width: "100%" }}>
             <MapBoundsWatcher onChange={setMapBounds} />
+            <MapRecenter lat={office.lat} lng={office.lng} />
             <TileLayer
               attribution='&copy; <a href="https://www.ign.fr">IGN-F/Géoportail</a>'
               url="https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png"
             />
-            <Marker position={[OFFICE_LAT, OFFICE_LNG]} icon={officeIcon}>
-              <Popup>{OFFICE_LABEL}</Popup>
+            <Marker position={[office.lat, office.lng]} icon={officeIcon}>
+              <Popup>{office.label} — {office.address}</Popup>
             </Marker>
             {filtered.map((s) => (
               <Marker key={s.id} position={[s.lat, s.lng]} icon={pinIcon((FOOD_TYPES[s.type] || FALLBACK_TYPE).color, (FOOD_TYPES[s.type] || FALLBACK_TYPE).icon)}>

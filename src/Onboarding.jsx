@@ -46,8 +46,9 @@ const STEPS = [
     title: "Les bonnes adresses",
     body: () => (
       <>
-        Le bouton <strong>Bonnes adresses</strong> ouvre une carte autour du bureau. Ajoute un lieu avec ton
-        avis, ou donne le tien sur un lieu déjà listé. Tu peux filtrer par type, prix et temps de marche.
+        Le bouton <strong>Bonnes adresses</strong> ouvre une carte autour du bureau : choisis <strong>Valois/BE</strong>{" "}
+        ou <strong>La Chapelle</strong> pour calculer les temps de marche depuis le tien. Ajoute un lieu avec ton avis,
+        ou donne le tien sur un lieu déjà listé, et filtre par type, prix et temps de marche.
       </>
     ),
   },
