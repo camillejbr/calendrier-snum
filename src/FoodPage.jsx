@@ -620,11 +620,13 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         .address-suggestions li button:hover { background: #F7F3EC; }
         .review-row { border-top: 1px solid #EDE8DA; padding: 10px 0 0; margin-top: 10px; }
         .food-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
-        .food-map { position: sticky; top: 20px; height: 560px; border-radius: 10px; overflow: hidden; border: 1px solid #EDE8DA; }
+        .food-side { position: sticky; top: 20px; }
+        .food-map { height: min(560px, calc(100dvh - 170px)); min-height: 320px; border-radius: 10px; overflow: hidden; border: 1px solid #EDE8DA; }
         .food-map .leaflet-tile-pane { filter: grayscale(0.45) sepia(0.12) contrast(0.92) brightness(1.08) saturate(0.85); }
         @media (max-width: 860px) {
           .food-layout { grid-template-columns: 1fr; }
-          .food-map { position: static; height: 320px; order: -1; }
+          .food-side { position: static; order: -1; }
+          .food-map { height: 320px; min-height: 0; }
         }
       `}</style>
 
@@ -669,51 +671,6 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         >
           + Ajouter un lieu
         </button>
-      </div>
-
-      <div style={{ marginBottom: 22 }}>
-        <p id="office-switch-label" style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase", color: "#6B6862" }}>
-          Mon bureau
-        </p>
-        <div
-          role="group"
-          aria-labelledby="office-switch-label"
-          className="office-switch"
-          style={{ display: "flex", gap: 4, padding: 4, background: "#E9E3D3", borderRadius: 12 }}
-        >
-          {Object.values(OFFICES).map((o) => {
-            const active = officeKey === o.key;
-            return (
-              <button
-                key={o.key}
-                type="button"
-                aria-pressed={active}
-                onClick={() => chooseOffice(o.key)}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  padding: "10px 16px",
-                  textAlign: "left",
-                  border: "none",
-                  borderRadius: 9,
-                  cursor: "pointer",
-                  fontFamily: "'Inter', sans-serif",
-                  background: active ? "#2B2A28" : "transparent",
-                  color: active ? "#F7F3EC" : "#2B2A28",
-                  boxShadow: active ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
-                }}
-              >
-                <span style={{ display: "block", fontSize: 16, fontWeight: 600 }}>
-                  <span aria-hidden="true">{active ? "● " : "○ "}</span>
-                  {o.label}
-                </span>
-                <span style={{ display: "block", fontSize: 12, marginTop: 2, color: active ? "#D8D3C6" : "#4A4740" }}>
-                  {o.address.replace(", ", " · ")}
-                </span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {saveError && (
@@ -1075,7 +1032,52 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           )}
         </div>
 
-        <div className="food-map">
+        <div className="food-side">
+          <div style={{ marginBottom: 10 }}>
+            <p id="office-switch-label" style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase", color: "#6B6862" }}>
+              Mon bureau
+            </p>
+            <div
+              role="group"
+              aria-labelledby="office-switch-label"
+              className="office-switch"
+              style={{ display: "flex", gap: 4, padding: 4, background: "#E9E3D3", borderRadius: 12 }}
+            >
+              {Object.values(OFFICES).map((o) => {
+                const active = officeKey === o.key;
+                return (
+                  <button
+                    key={o.key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => chooseOffice(o.key)}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      padding: "10px 16px",
+                      textAlign: "left",
+                      border: "none",
+                      borderRadius: 9,
+                      cursor: "pointer",
+                      fontFamily: "'Inter', sans-serif",
+                      background: active ? "#2B2A28" : "transparent",
+                      color: active ? "#F7F3EC" : "#2B2A28",
+                      boxShadow: active ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                    }}
+                  >
+                    <span style={{ display: "block", fontSize: 16, fontWeight: 600 }}>
+                      <span aria-hidden="true">{active ? "● " : "○ "}</span>
+                      {o.label}
+                    </span>
+                    <span style={{ display: "block", fontSize: 12, marginTop: 2, color: active ? "#D8D3C6" : "#4A4740" }}>
+                      {o.address.replace(", ", " · ")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="food-map">
           <h2 style={srOnlyStyle}>Carte des lieux</h2>
           <MapContainer center={[office.lat, office.lng]} zoom={15} style={{ height: "100%", width: "100%" }}>
             <MapBoundsWatcher onChange={setMapBounds} />
@@ -1105,6 +1107,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
               </Marker>
             ))}
           </MapContainer>
+          </div>
         </div>
       </div>
     </main>
