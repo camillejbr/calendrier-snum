@@ -650,21 +650,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
           <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 28, margin: "0 0 4px" }}>
             Bonnes adresses
           </h1>
-          <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>Temps de marche depuis {office.address}.</p>
-          <div role="group" aria-label="Bureau de référence" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-            <span style={{ fontSize: 13, color: "#6B6862" }}>Bureau :</span>
-            {Object.values(OFFICES).map((o) => (
-              <button
-                key={o.key}
-                type="button"
-                aria-pressed={officeKey === o.key}
-                onClick={() => chooseOffice(o.key)}
-                style={chipStyle(officeKey === o.key)}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
+          <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>Les temps de marche sont calculés depuis le bureau choisi.</p>
         </div>
         <button
           onClick={() => openPlaceForm()}
@@ -683,6 +669,51 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         >
           + Ajouter un lieu
         </button>
+      </div>
+
+      <div style={{ marginBottom: 22 }}>
+        <p id="office-switch-label" style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase", color: "#6B6862" }}>
+          Mon bureau
+        </p>
+        <div
+          role="group"
+          aria-labelledby="office-switch-label"
+          className="office-switch"
+          style={{ display: "flex", gap: 4, padding: 4, background: "#E9E3D3", borderRadius: 12 }}
+        >
+          {Object.values(OFFICES).map((o) => {
+            const active = officeKey === o.key;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => chooseOffice(o.key)}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: "10px 16px",
+                  textAlign: "left",
+                  border: "none",
+                  borderRadius: 9,
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                  background: active ? "#2B2A28" : "transparent",
+                  color: active ? "#F7F3EC" : "#2B2A28",
+                  boxShadow: active ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                }}
+              >
+                <span style={{ display: "block", fontSize: 16, fontWeight: 600 }}>
+                  <span aria-hidden="true">{active ? "● " : "○ "}</span>
+                  {o.label}
+                </span>
+                <span style={{ display: "block", fontSize: 12, marginTop: 2, color: active ? "#D8D3C6" : "#4A4740" }}>
+                  {o.address.replace(", ", " · ")}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {saveError && (
