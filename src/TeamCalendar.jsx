@@ -523,7 +523,7 @@ export default function TeamCalendar({ user, onSignOut }) {
             fontFamily: "'Inter', sans-serif",
           }}
         >
-          {isFull ? "Complet" : going ? "Inscrit ✓" : "Je viens"}
+          {isFull ? "Complet" : going ? "Inscrit(e) ✓" : "Je viens"}
         </button>
       </div>
     );
