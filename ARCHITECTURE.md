@@ -72,15 +72,18 @@ Le staging servait uniquement à prévisualiser des changements d'interface/sch�
 ```
 src/
   main.jsx               point d'entrée, monte <App/>
-  App.jsx                gère la session Supabase, route vers <Auth/> ou <TeamCalendar/>
-  Auth.jsx                écrans connexion / inscription / code de confirmation / mot de passe oublié
+  App.jsx                gère la session Supabase : visiteur non connecté → <AccessGate/> (mot de passe d'accès) puis <Auth/> ; connecté → <TeamCalendar/>
+  AccessGate.jsx          première page : mot de passe commun, vérifié côté base (voir « Règles d'inscription »)
+  Auth.jsx                écrans connexion / inscription (avec nom affiché) / code de confirmation / mot de passe oublié ; exporte aussi les styles partagés et <PasswordInput/> (œil afficher/masquer)
   TeamCalendar.jsx        calendrier (liste / semaine / mois), CRUD événements, bouton notifications
   NotificationSettings.jsx  modale des préférences email
+  Onboarding.jsx          tutoriel pas à pas de première connexion (modale accessible, rouvrable via « Tutoriel »)
   AdminPage.jsx           page admin (pas une modale) : tableau des utilisateurs, recherche par email, suppression de compte — remplace tout l'écran, atteinte via le bouton "⚙️ Admin" (visible seulement si `is_admin()` renvoie true)
-  FoodPage.jsx            page "Bonnes adresses" : carte (Leaflet/OpenStreetMap) centrée sur le bureau + liste filtrable des recommandations food, atteinte via le bouton "🍽️ Bonnes adresses"
+  FoodPage.jsx            page "Bonnes adresses" : carte (Leaflet, fond IGN) centrée sur le bureau + liste filtrable des recommandations food, atteinte via le bouton "🍽️ Bonnes adresses"
   supabaseClient.js       client Supabase (URL + clé lues depuis les variables d'env, avec valeurs de prod en fallback)
   index.css               reset global minimal (html/body/#root en 100% de hauteur)
 supabase/functions/notify/index.ts   Edge Function (voir plus bas)
+supabase/migrations/                 scripts SQL à exécuter à la main dans l'éditeur SQL Supabase (pas d'outil de migration automatique) — voir le statut du staging plus haut
 ```
 
 Pas de librairie de routing (une seule "page" affichée à la fois) — `TeamCalendar.jsx` fait un early return vers `<AdminPage/>` ou `<FoodPage/>` selon un state local (`showAdminPanel`/`showFoodPage`). Pas de state manager externe non plus (juste `useState`/`useEffect`).
