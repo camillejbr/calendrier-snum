@@ -15,7 +15,7 @@ function passwordError(pw) {
   return null;
 }
 
-const wrapStyle = {
+export const wrapStyle = {
   fontFamily: "'Inter', sans-serif",
   background: "#F7F3EC",
   minHeight: "100dvh",
@@ -27,7 +27,7 @@ const wrapStyle = {
   boxSizing: "border-box",
 };
 
-const inputStyle = {
+export const inputStyle = {
   width: "100%",
   boxSizing: "border-box",
   padding: "10px 14px",
@@ -38,7 +38,7 @@ const inputStyle = {
   fontFamily: "'Inter', sans-serif",
 };
 
-const labelStyle = {
+export const labelStyle = {
   display: "block",
   textAlign: "left",
   fontSize: 13,
@@ -47,7 +47,7 @@ const labelStyle = {
   marginBottom: 4,
 };
 
-const primaryBtnStyle = {
+export const primaryBtnStyle = {
   width: "100%",
   padding: "10px 14px",
   fontSize: 15,
@@ -71,11 +71,16 @@ const linkBtnStyle = {
   textDecoration: "underline",
 };
 
+// Les adresses @culture.gouv.fr (et leurs sous-domaines) ne peuvent pas s'inscrire.
+// Même règle que le trigger côté base (private.enforce_signup_rules) : ici, c'est pour
+// afficher un message clair, la vraie barrière est côté serveur.
+const BLOCKED_DOMAIN = /@([a-z0-9-]+\.)*culture\.gouv\.fr$/i;
+
 function isRecoveryLink() {
   return window.location.hash.includes("type=recovery");
 }
 
-export default function Auth() {
+export default function Auth({ accessCode, onAccessCodeInvalid }) {
   const [mode, setMode] = useState(() => (isRecoveryLink() ? "reset" : "login")); // login | signup | confirm | forgot | reset
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -125,8 +130,8 @@ export default function Auth() {
     e.preventDefault();
     setError("");
     setMessage("");
-    if (!email.trim().toLowerCase().endsWith("@culture.gouv.fr")) {
-      setError("L'inscription est réservée aux adresses @culture.gouv.fr.");
+    if (BLOCKED_DOMAIN.test(email.trim())) {
+      setError("Les adresses @culture.gouv.fr ne peuvent pas s'inscrire ici.");
       return;
     }
     const pwError = passwordError(password);
@@ -139,18 +144,32 @@ export default function Auth() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
-    setBusy(false);
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { access_code: accessCode } },
+    });
     if (error) {
       if (error.message === "User already registered") {
+        setBusy(false);
         setError("Un compte existe déjà avec cet email.");
       } else if (error.message === "Database error saving new user") {
-        setError("L'inscription est réservée aux adresses @culture.gouv.fr.");
+        // Le trigger côté base a refusé l'inscription sans dire pourquoi : on regarde si
+        // le mot de passe d'accès est toujours valide (il a pu être changé entre-temps).
+        const { data: stillValid } = await supabase.rpc("check_access_code", { code: accessCode });
+        setBusy(false);
+        if (!stillValid) {
+          onAccessCodeInvalid();
+          return;
+        }
+        setError("Inscription refusée : cette adresse n'est pas autorisée.");
       } else {
+        setBusy(false);
         setError(error.message);
       }
       return;
     }
+    setBusy(false);
     setMode("confirm");
     setError("");
     setMessage("");
@@ -264,7 +283,7 @@ export default function Auth() {
 
         {mode === "signup" && (
           <p style={{ color: "#6B6862", fontSize: 15, margin: "0 0 24px" }}>
-            Réservé aux adresses <strong style={{ color: "#2B2A28" }}>@culture.gouv.fr</strong>.
+            Ouvert à toutes les adresses email, sauf <strong style={{ color: "#2B2A28" }}>@culture.gouv.fr</strong>.
           </p>
         )}
 
@@ -334,7 +353,7 @@ export default function Auth() {
               id="signup-email"
               type="email"
               autoComplete="email"
-              placeholder="prenom.nom@culture.gouv.fr"
+              placeholder="prenom.nom@exemple.fr"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

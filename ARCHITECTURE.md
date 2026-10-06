@@ -1,6 +1,6 @@
 # Documentation technique — L'agenda du SNUM
 
-Calendrier d'équipe partagé (verres, activités, sport, repas), avec comptes réservés aux adresses `@culture.gouv.fr` et notifications par email. Ce document décrit l'architecture pour permettre une reprise en main par un·e développeur·se.
+Calendrier d'équipe partagé (verres, activités, sport, repas), avec inscription ouverte à toute adresse **sauf** `@culture.gouv.fr`, derrière un mot de passe d'accès commun, et notifications par email. Ce document décrit l'architecture pour permettre une reprise en main par un·e développeur·se.
 
 > **Maintenance** : ce fichier doit être mis à jour dans le même commit que tout changement d'architecture (nouvelle table, nouvelle intégration externe, nouveau flux d'auth, etc.). Il n'y a pas d'automatisation qui le fait à ta place — si tu ajoutes une fonctionnalité qui change ce document, pense à le modifier toi-même.
 
@@ -61,7 +61,7 @@ Deux projets distincts, même organisation :
 | Usage | Site en ligne | Tests locaux uniquement |
 | Edge Function `notify` | ✅ déployée | ❌ non déployée |
 | SMTP configuré (emails d'auth) | ✅ | ❌ (limite par défaut Supabase très basse) |
-| Trigger restriction `@culture.gouv.fr` | ✅ | ❌ |
+| Règles d'inscription (mot de passe d'accès + blocage `@culture.gouv.fr`) et `is_member()` | ⏳ script prêt (`supabase/migrations/20261006_open_signup_with_access_code.sql`), à appliquer | ❌ non migré (projet en pause, ancien schéma) |
 
 Le staging sert uniquement à prévisualiser des changements d'interface/schéma sans toucher aux vraies données d'équipe — il n'a pas toute l'infra d'envoi d'email.
 
@@ -102,7 +102,7 @@ Recommandations de restaurants/boulangeries/etc. autour du bureau, avec géoloca
   - Rien n'est stocké en base (ni le cache, ni la distance) — tout est recalculé/refetché côté client à partir de `lat`/`lng`.
 - **Prix** : champ numérique libre en euros (entier), pas de grille €/€€/€€€. Le filtre prix propose des tranches (≤ 15€ / ≤ 25€ / ≤ 40€).
 - **Types de lieu** (`FOOD_TYPES` dans `FoodPage.jsx`) : italien / bistro / asiat' / oriental / boulangerie / healthy — pas de catégorie "autre" dans le formulaire ; un fallback visuel (`FALLBACK_TYPE`, pastille "📍 Autre") protège juste l'affichage si une donnée ancienne ou hors-liste apparaît un jour, sans être proposable à la création.
-- **Deux tables, un lieu peut recevoir plusieurs avis** : `food_spots` (le lieu — name, type texte libre sans contrainte CHECK, address, lat, lng, host/host_id = qui a ajouté le lieu) et `food_reviews` (un avis — spot_id en FK `on delete cascade`, price integer €, rating 1-5 `not null check`, comment optionnel, host/host_id = qui a écrit l'avis). Supprimer un lieu supprime tous ses avis. RLS sur les deux tables : lecture/écriture réservées à `@culture.gouv.fr` ; modification/suppression du lieu réservées à celui qui l'a ajouté ou un admin ; modification/suppression d'un avis réservées à son auteur ou un admin (`is_admin()`) — chacun ne peut donc modifier/supprimer que son propre avis, jamais celui d'un collègue.
+- **Deux tables, un lieu peut recevoir plusieurs avis** : `food_spots` (le lieu — name, type texte libre sans contrainte CHECK, address, lat, lng, host/host_id = qui a ajouté le lieu) et `food_reviews` (un avis — spot_id en FK `on delete cascade`, price integer €, rating 1-5 `not null check`, comment optionnel, host/host_id = qui a écrit l'avis). Supprimer un lieu supprime tous ses avis. RLS sur les deux tables : lecture/écriture réservées aux membres (`is_member()`, voir plus bas) ; modification/suppression du lieu réservées à celui qui l'a ajouté ou un admin ; modification/suppression d'un avis réservées à son auteur ou un admin (`is_admin()`) — chacun ne peut donc modifier/supprimer que son propre avis, jamais celui d'un collègue.
 - Prix et note affichés au niveau du lieu (carte, liste, filtres) sont des **moyennes** calculées côté client à partir de tous ses avis (`spotsWithReviews` dans `FoodPage.jsx`), recalculées à chaque chargement — rien n'est stocké en base.
 - Le formulaire "+ Ajouter un lieu" crée le lieu et un premier avis en une fois. Sur un lieu déjà existant, "+ Mon avis" ouvre un formulaire allégé (prix/note/commentaire seulement) lié au `spot_id`. Ce bouton disparaît si l'utilisateur a déjà un avis sur ce lieu — il modifie alors directement sa ligne existante (✎) plutôt que d'en recréer une.
 - **Avis repliés par défaut** : pour ne pas polluer la liste quand un lieu accumule des avis, ceux-ci ne s'affichent que si le lieu est déplié (state `expandedSpots`, un `Set` d'ids de lieux, dans `FoodPage.jsx`). Le lien "Voir les X avis ▾" / "Masquer les avis ▴" bascule l'état par lieu ; ouvrir le formulaire d'ajout/édition d'avis (`openReviewForm`) déplie automatiquement le lieu concerné pour que l'utilisateur voie le contexte (avis existants) en même temps que son propre formulaire.
@@ -111,7 +111,7 @@ Recommandations de restaurants/boulangeries/etc. autour du bureau, avec géoloca
 
 ### Nom affiché
 
-Le nom affiché (organisateur, participants) est dérivé automatiquement de l'email, pas saisi par l'utilisateur : `prenom.nom@culture.gouv.fr` → **"Prénom N."** (fonction `displayNameFromEmail` dans `TeamCalendar.jsx`, dupliquée en TypeScript dans l'Edge Function). Un éventuel 3ᵉ segment (`prenom.nom.ext@...`, pour désambiguïser des homonymes) est ignoré.
+Le nom affiché (organisateur, participants) est dérivé automatiquement de l'email, pas saisi par l'utilisateur : `prenom.nom@domaine` → **"Prénom N."** (et `jdupont@gmail.com`, sans point, → "Jdupont") (fonction `displayNameFromEmail` dans `TeamCalendar.jsx`, dupliquée en TypeScript dans l'Edge Function). Un éventuel 3ᵉ segment (`prenom.nom.ext@...`, pour désambiguïser des homonymes) est ignoré.
 
 ## Base de données (schéma `public`)
 
@@ -159,23 +159,33 @@ La suppression d'événements par un admin (pas seulement le sien) passe simplem
 
 ### RLS (Row Level Security)
 
-Toutes les tables sont restreintes au rôle `authenticated` **et** au domaine email :
+Toutes les tables sont restreintes au rôle `authenticated` **et** à `public.is_member()` : tout compte connecté dont l'email n'est **pas** en `@culture.gouv.fr` (ni sous-domaine).
 ```sql
-using ((auth.jwt() ->> 'email') ilike '%@culture.gouv.fr')
+using (public.is_member())
 ```
+`is_member()` est l'unique endroit qui définit « qui a accès aux données » : toutes les policies l'appellent (policies renommées `members read/insert/update …`). Pour changer cette règle, il suffit de redéfinir cette fonction, pas de réécrire 13 policies. Historique : avant, la règle était câblée en dur dans chaque policy (`ilike '%@culture.gouv.fr'`, accès *réservé* à ce domaine) ; elle a été inversée en même temps que l'ouverture de l'inscription. Conséquence : les comptes `@culture.gouv.fr` déjà créés peuvent toujours se connecter mais ne voient plus aucune donnée.
 
-La suppression d'un événement (`delete` sur `events`) a une condition supplémentaire : `host_id = auth.uid() or is_admin()`. Avant ça, n'importe quel compte `@culture.gouv.fr` authentifié pouvait supprimer n'importe quel événement via l'API directement (le bouton "supprimer" n'était caché que côté interface, pas vraiment protégé) — c'est corrigé depuis.
+La suppression d'un événement (`delete` sur `events`) a une condition supplémentaire : `host_id = auth.uid() or is_admin()`. Avant ça, n'importe quel compte authentifié pouvait supprimer n'importe quel événement via l'API directement (le bouton "supprimer" n'était caché que côté interface, pas vraiment protégé) — c'est corrigé depuis.
 
 ⚠️ **Piège rencontré** : créer une table ne suffit pas pour que `authenticated`/`anon`/`service_role` puissent l'utiliser, même avec des policies RLS correctes — il faut aussi les `GRANT` explicites (`grant select, insert, update, delete on <table> to authenticated`). Ça a cassé la sauvegarde des préférences de notification en prod jusqu'à ce qu'on le remarque. Toute nouvelle table doit inclure ces GRANT dans sa migration.
 
-### Trigger de restriction d'inscription
+### Règles d'inscription (trigger) et mot de passe d'accès commun
 
-Un trigger `before insert` sur `auth.users` (fonction `enforce_culture_gouv_email`) rejette toute création de compte dont l'email ne finit pas par `@culture.gouv.fr`. C'est ce qui bloque l'inscription **côté serveur**, indépendamment du formulaire.
+Un trigger `before insert` sur `auth.users` (`private.enforce_signup_rules`, schéma `private` non exposé par l'API) applique deux règles **côté serveur**, indépendamment du formulaire :
+1. rejette tout email en `@culture.gouv.fr` (et sous-domaines) ;
+2. exige le mot de passe d'accès commun dans les métadonnées d'inscription (`options.data.access_code` côté `supabase.auth.signUp`), puis le retire des métadonnées avant stockage.
+
+Le mot de passe d'accès est stocké **uniquement sous forme de hash bcrypt** dans `public.app_access` (une seule ligne ; table sans aucun droit pour `anon`/`authenticated`, accessible via des fonctions `SECURITY DEFINER`) :
+- `set_access_code(text)` : définit/change le mot de passe (8 caractères minimum). Réservée au propriétaire de la base : se lance depuis l'éditeur SQL Supabase (`select public.set_access_code('…')`), donc le mot de passe n'apparaît ni dans le code ni dans l'historique du dépôt. Tant qu'aucun mot de passe n'est défini, **personne ne peut s'inscrire** (échec fermé).
+- `check_access_code(code text) → boolean` : appelée par la page d'entrée (`AccessGate.jsx`), accessible aux visiteurs non connectés.
+- Limitation des essais : au-delà de 20 échecs en 10 minutes (tous visiteurs confondus, table `access_code_failures`), les vérifications répondent « faux » jusqu'à la fin de la fenêtre. Limite connue : un échec dans le trigger d'inscription annule la transaction, donc n'est pas compté ; le chemin d'inscription reste protégé par la limitation de débit de Supabase Auth, pas par ce compteur.
+- ⚠️ GoTrue ne remonte pas le message d'erreur du trigger au client (toujours `Database error saving new user`) : `Auth.jsx` ne peut donc pas distinguer « adresse refusée » de « mauvais mot de passe d'accès » à partir de la réponse ; elle revérifie le code via `check_access_code` pour décider s'il faut renvoyer l'utilisateur à la page d'entrée.
 
 ## Authentification
 
 - Email + mot de passe, via Supabase Auth.
-- Inscription réservée à `@culture.gouv.fr` (trigger ci-dessus + vérification côté formulaire).
+- **Page d'entrée avec mot de passe commun** (`AccessGate.jsx`, affichée par `App.jsx` aux visiteurs non connectés avant la page de connexion/inscription). Le mot de passe validé est gardé le temps de l'onglet (`sessionStorage`, clé `snum-access-code`) pour être joint à l'inscription ; un utilisateur déjà connecté (session Supabase valide) ne repasse pas par cette page. Le lien de réinitialisation de mot de passe (`#…type=recovery`) saute aussi la page d'entrée.
+- Inscription ouverte à toute adresse sauf `@culture.gouv.fr` : refus côté formulaire (`BLOCKED_DOMAIN` dans `Auth.jsx`, pour le message clair) **et** côté base (trigger ci-dessus, la vraie barrière).
 - **Confirmation par code, pas par lien cliquable.** Raison : le serveur mail de `culture.gouv.fr` a un scanner de sécurité qui pré-clique automatiquement les liens des emails entrants (même pour des adresses qui n'existent pas), ce qui confirmait des comptes sans qu'aucun humain ne les valide. Le code doit être saisi manuellement dans l'app, ce qu'un scanner automatique ne peut pas faire.
   - ⚠️ Le code envoyé par Supabase pour ce projet fait **8 chiffres**, pas les 6 documentés par défaut dans la doc Supabase (probablement un réglage "Email OTP Length" modifié côté dashboard). Le champ de saisie ne doit donc pas limiter la longueur à 6 (`maxLength` généreux côté `Auth.jsx`) — un bug de ce type a bloqué toutes les confirmations un moment avant d'être repéré.
   - Template email à éditer dans le dashboard Supabase (Authentication → Email Templates → **Confirm signup**) : doit contenir `{{ .Token }}`, ne **doit pas** contenir `{{ .ConfirmationURL }}`.

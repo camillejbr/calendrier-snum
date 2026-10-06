@@ -73,8 +73,9 @@ function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// Emails follow prenom.nom@culture.gouv.fr or prenom.nom.ext@culture.gouv.fr
-// (the optional 3rd segment disambiguates homonyms) — display "Prénom N."
+// Emails usually look like prenom.nom@domaine or prenom.nom.ext@domaine (the optional 3rd
+// segment disambiguates homonyms) — display "Prénom N." (just the capitalised local part
+// when there is no dot, e.g. jdupont@gmail.com → "Jdupont")
 function displayNameFromEmail(email) {
   const local = email.split("@")[0];
   const [prenom, nom] = local.split(".");
