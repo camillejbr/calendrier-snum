@@ -99,7 +99,8 @@ function formatDateLabel(dateStr) {
 }
 
 export default function TeamCalendar({ user, onSignOut }) {
-  const profileName = displayNameFromEmail(user.email);
+  // Nom choisi à l'inscription ("Camille J.") ; repli sur l'email pour les comptes qui n'en ont pas.
+  const profileName = user.user_metadata?.display_name || displayNameFromEmail(user.email);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);

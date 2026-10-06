@@ -113,7 +113,9 @@ Recommandations de restaurants/boulangeries/etc. autour du bureau, avec géoloca
 
 ### Nom affiché
 
-Le nom affiché (organisateur, participants) est dérivé automatiquement de l'email, pas saisi par l'utilisateur : `prenom.nom@domaine` → **"Prénom N."** (et `jdupont@gmail.com`, sans point, → "Jdupont") (fonction `displayNameFromEmail` dans `TeamCalendar.jsx`, dupliquée en TypeScript dans l'Edge Function). Un éventuel 3ᵉ segment (`prenom.nom.ext@...`, pour désambiguïser des homonymes) est ignoré.
+Le nom affiché (organisateur, participants, auteur d'un lieu ou d'un avis) est **saisi à l'inscription** : champ « Prénom et initiale du nom » (`Auth.jsx`, ex. `Camille J`), normalisé en **"Camille J."** par `normalizeDisplayName` (refus d'un nom complet ou d'un prénom seul) puis stocké dans les métadonnées du compte (`user_metadata.display_name`, passé via `options.data` de `supabase.auth.signUp`). Côté front, `profileName` = `user.user_metadata.display_name`, avec repli sur `displayNameFromEmail` (`prenom.nom@domaine` → "Prénom N.", ou le début de l'email en majuscule si pas de point) pour les comptes sans `display_name`. La fonction `notify` fait le même choix (`hostData.user.user_metadata?.display_name` d'abord) pour ne pas notifier l'organisateur de sa propre inscription.
+
+⚠️ Limites connues : (1) le nom est un simple libellé côté client, rien n'empêche techniquement un utilisateur de mettre un autre nom via l'API ; (2) les inscriptions aux événements (`attendees`) et l'auteur (`host`) sont stockés **sous forme de texte**, pas d'identifiant : deux personnes avec exactement le même nom affiché ("Camille J.") seraient confondues (l'une désinscrit l'autre). Pas de contrôle d'unicité du nom pour l'instant.
 
 ## Base de données (schéma `public`)
 

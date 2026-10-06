@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./supabaseClient.js";
-import { wrapStyle, inputStyle, labelStyle, primaryBtnStyle } from "./Auth.jsx";
+import { wrapStyle, labelStyle, primaryBtnStyle, PasswordInput } from "./Auth.jsx";
 
 // Première page : mot de passe commun à tout le monde, vérifié côté base (RPC
 // check_access_code, comparaison au hash bcrypt) — jamais stocké ni lisible dans ce code.
@@ -60,15 +60,12 @@ export default function AccessGate({ onPass }) {
 
         <form onSubmit={handleSubmit}>
           <label htmlFor="access-code" style={labelStyle}>Mot de passe d'accès</label>
-          <input
+          <PasswordInput
             id="access-code"
-            type="password"
             autoComplete="off"
-            required
             autoFocus
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            style={inputStyle}
           />
           <button type="submit" disabled={busy} style={primaryBtnStyle}>
             {busy ? "Vérification…" : "Continuer"}

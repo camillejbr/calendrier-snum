@@ -60,6 +60,59 @@ export const primaryBtnStyle = {
   fontFamily: "'Inter', sans-serif",
 };
 
+// Champ mot de passe avec bouton œil pour afficher/masquer ce qu'on tape.
+export function PasswordInput({ id, value, onChange, autoComplete, autoFocus = false }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }}>
+      <input
+        id={id}
+        type={visible ? "text" : "password"}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        required
+        value={value}
+        onChange={onChange}
+        style={{ ...inputStyle, marginBottom: 0, paddingRight: 44 }}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+        aria-pressed={visible}
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 44,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "none",
+          border: "none",
+          color: "#6B6862",
+          cursor: "pointer",
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {visible ? (
+            <>
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </>
+          ) : (
+            <>
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </>
+          )}
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 const linkBtnStyle = {
   background: "none",
   border: "none",
@@ -76,6 +129,17 @@ const linkBtnStyle = {
 // afficher un message clair, la vraie barrière est côté serveur.
 const BLOCKED_DOMAIN = /@([a-z0-9-]+\.)*culture\.gouv\.fr$/i;
 
+// Nom affiché : prénom suivi de l'initiale du nom, saisi à l'inscription ("Camille J" ou
+// "Camille J." → "Camille J."). Renvoie null si le format n'est pas respecté.
+function normalizeDisplayName(raw) {
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  const m = cleaned.match(/^(\p{L}[\p{L}'’-]*(?: \p{L}[\p{L}'’-]*)*) (\p{L})\.?$/u);
+  if (!m) return null;
+  // Majuscule à chaque suite de lettres : "jean-pierre" → "Jean-Pierre", "o'brien" → "O'Brien".
+  const prenom = m[1].replace(/\p{L}+/gu, (part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase());
+  return `${prenom} ${m[2].toUpperCase()}.`;
+}
+
 function isRecoveryLink() {
   return window.location.hash.includes("type=recovery");
 }
@@ -83,6 +147,7 @@ function isRecoveryLink() {
 export default function Auth({ accessCode, onAccessCodeInvalid }) {
   const [mode, setMode] = useState(() => (isRecoveryLink() ? "reset" : "login")); // login | signup | confirm | forgot | reset
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState("");
@@ -134,6 +199,11 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
       setError("Les adresses @culture.gouv.fr ne peuvent pas s'inscrire ici.");
       return;
     }
+    const normalizedName = normalizeDisplayName(displayName);
+    if (!normalizedName) {
+      setError("Indique ton prénom suivi de l'initiale de ton nom, par exemple : Camille J");
+      return;
+    }
     const pwError = passwordError(password);
     if (pwError) {
       setError(pwError);
@@ -147,7 +217,7 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { access_code: accessCode } },
+      options: { data: { access_code: accessCode, display_name: normalizedName } },
     });
     if (error) {
       if (error.message === "User already registered") {
@@ -323,14 +393,11 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
               style={inputStyle}
             />
             <label htmlFor="login-password" style={labelStyle}>Mot de passe</label>
-            <input
+            <PasswordInput
               id="login-password"
-              type="password"
               autoComplete="current-password"
-              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
             />
             <button type="submit" disabled={busy} style={primaryBtnStyle}>
               {busy ? "Connexion…" : "Se connecter"}
@@ -359,28 +426,38 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
               onChange={(e) => setEmail(e.target.value)}
               style={inputStyle}
             />
-            <label htmlFor="signup-password" style={labelStyle}>Mot de passe</label>
+            <label htmlFor="signup-display-name" style={labelStyle}>Prénom et initiale du nom</label>
             <input
-              id="signup-password"
-              type="password"
-              autoComplete="new-password"
+              id="signup-display-name"
+              type="text"
+              autoComplete="off"
+              placeholder="Camille J"
               required
+              maxLength={40}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              aria-describedby="signup-display-name-help"
+              style={inputStyle}
+            />
+            <p id="signup-display-name-help" style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
+              Le nom affiché aux autres, ex : Camille J
+            </p>
+            <label htmlFor="signup-password" style={labelStyle}>Mot de passe</label>
+            <PasswordInput
+              id="signup-password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
             />
             <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
               12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.
             </p>
             <label htmlFor="signup-password-confirm" style={labelStyle}>Confirmer le mot de passe</label>
-            <input
+            <PasswordInput
               id="signup-password-confirm"
-              type="password"
               autoComplete="new-password"
-              required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              style={inputStyle}
             />
             <button type="submit" disabled={busy} style={primaryBtnStyle}>
               {busy ? "Création…" : "Créer mon compte"}
@@ -448,27 +525,21 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
         {mode === "reset" && (
           <form onSubmit={handleReset}>
             <label htmlFor="reset-password" style={labelStyle}>Nouveau mot de passe</label>
-            <input
+            <PasswordInput
               id="reset-password"
-              type="password"
               autoComplete="new-password"
-              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
             />
             <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
               12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.
             </p>
             <label htmlFor="reset-password-confirm" style={labelStyle}>Confirmer le mot de passe</label>
-            <input
+            <PasswordInput
               id="reset-password-confirm"
-              type="password"
               autoComplete="new-password"
-              required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              style={inputStyle}
             />
             <button type="submit" disabled={busy} style={primaryBtnStyle}>
               {busy ? "Mise à jour…" : "Mettre à jour le mot de passe"}

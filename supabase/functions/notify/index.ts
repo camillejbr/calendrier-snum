@@ -19,7 +19,7 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// Mirrors displayNameFromEmail() in src/TeamCalendar.jsx
+// Mirrors displayNameFromEmail() in src/TeamCalendar.jsx (repli quand le compte n'a pas de display_name)
 function displayNameFromEmail(email: string) {
   const local = email.split("@")[0];
   const [prenom, nom] = local.split(".");
@@ -197,7 +197,8 @@ async function handleJoined(payload: {
     .maybeSingle();
   if (!pref?.on_join) return { sent: 0, reason: "pref off" };
 
-  const hostDisplayName = displayNameFromEmail(hostData.user.email);
+  // Nom choisi à l'inscription ("Camille J."), repli sur l'email pour les comptes qui n'en ont pas.
+  const hostDisplayName = hostData.user.user_metadata?.display_name || displayNameFromEmail(hostData.user.email);
   const joiners = payload.new_attendees.filter((n) => n !== hostDisplayName);
   if (!joiners.length) return { sent: 0, reason: "self-join only" };
 
