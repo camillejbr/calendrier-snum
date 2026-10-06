@@ -315,7 +315,7 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
       return;
     }
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    setMessage("Mot de passe mis à jour, tu es connecté·e !");
+    setMessage("Mot de passe mis à jour, tu es connecté(e) !");
   }
 
   const titles = {

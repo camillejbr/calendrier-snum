@@ -589,7 +589,7 @@ export default function TeamCalendar({ user, onSignOut }) {
             L'agenda du SNUM
           </h1>
           <p style={{ margin: 0, color: "#6B6862", fontSize: 14 }}>
-            Connecté comme <strong style={{ color: "#2B2A28" }}>{profileName}</strong>
+            Connecté(e) comme <strong style={{ color: "#2B2A28" }}>{profileName}</strong>
             {" · "}
             <button
               onClick={onSignOut}
