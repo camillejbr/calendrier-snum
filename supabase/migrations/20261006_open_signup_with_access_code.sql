@@ -68,8 +68,8 @@ as $$
 declare
   trimmed text := btrim(coalesce(new_code, ''));
 begin
-  if length(trimmed) < 8 then
-    raise exception 'Le mot de passe d''accès doit faire au moins 8 caractères.';
+  if length(trimmed) < 5 then
+    raise exception 'Le mot de passe d''accès doit faire au moins 5 caractères.';
   end if;
   insert into public.app_access (id, code_hash, updated_at)
   values (true, extensions.crypt(trimmed, extensions.gen_salt('bf', 10)), now())
