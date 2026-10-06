@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { supabase } from "./supabaseClient.js";
 import NotificationSettings from "./NotificationSettings.jsx";
+import Onboarding from "./Onboarding.jsx";
 
 // Chargées à la demande : AdminPage et surtout FoodPage (qui embarque Leaflet, gros
 // paquet) ne doivent pas alourdir le chargement initial du calendrier pour tout le monde.
@@ -105,6 +106,9 @@ export default function TeamCalendar({ user, onSignOut }) {
   const [events, setEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
+  // Tutoriel affiché à la première connexion (drapeau stocké dans les métadonnées du compte,
+  // donc valable sur tous les appareils) ; rouvrable via le lien « Tutoriel ».
+  const [showTutorial, setShowTutorial] = useState(() => !user.user_metadata?.onboarding_done);
   const [showAdminPanel, setShowAdminPanel] = useState(() => window.location.hash === "#/admin");
   const [showFoodPage, setShowFoodPage] = useState(() => window.location.hash === "#/bonnes-adresses");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -172,6 +176,13 @@ export default function TeamCalendar({ user, onSignOut }) {
   function openFoodPage() {
     window.location.hash = "/bonnes-adresses";
     setShowFoodPage(true);
+  }
+
+  async function finishTutorial() {
+    setShowTutorial(false);
+    if (user.user_metadata?.onboarding_done) return;
+    const { error } = await supabase.auth.updateUser({ data: { onboarding_done: true } });
+    if (error) console.error(error);
   }
 
   function backToCalendar() {
@@ -560,6 +571,7 @@ export default function TeamCalendar({ user, onSignOut }) {
         }
       `}</style>
 
+      {showTutorial && <Onboarding name={profileName} onDone={finishTutorial} />}
       {showNotifSettings && (
         <NotificationSettings user={user} onClose={() => setShowNotifSettings(false)} />
       )}
@@ -593,6 +605,22 @@ export default function TeamCalendar({ user, onSignOut }) {
               }}
             >
               Se déconnecter
+            </button>
+            {" · "}
+            <button
+              onClick={() => setShowTutorial(true)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#6B6862",
+                fontSize: 13,
+                cursor: "pointer",
+                textDecoration: "underline",
+                fontFamily: "'Inter', sans-serif",
+                padding: 0,
+              }}
+            >
+              Tutoriel
             </button>
           </p>
         </div>
