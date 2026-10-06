@@ -186,7 +186,10 @@ function Confidentialite() {
       <p style={pStyle}>
         Le site ne dépose <strong>aucun cookie</strong> et n'utilise aucun traceur : il n'y a donc pas de bandeau à
         accepter. Deux éléments techniques indispensables sont stockés dans votre navigateur : le jeton qui vous garde
-        connecté·e (stockage local), et le mot de passe d'accès saisi à l'entrée, effacé à la fermeture de l'onglet.
+        connecté·e (stockage local), et le mot de passe d'accès saisi à l'entrée, effacé à la fermeture de l'onglet. Un
+        troisième, facultatif, retient sur votre appareil le bureau que vous choisissez sur la carte des bonnes adresses
+        (Valois/BE ou La Chapelle), pour vous le proposer à votre prochaine visite ; il ne contient aucune donnée
+        personnelle et vous pouvez l'effacer en vidant les données du site dans votre navigateur.
       </p>
 
       <h2 style={h2Style}>Combien de temps ?</h2>

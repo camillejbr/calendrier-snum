@@ -10,6 +10,25 @@ const OFFICES = {
   chapelle: { key: "chapelle", label: "La Chapelle", address: "47 rue de la Chapelle, 75018 Paris", lat: 48.8939019, lng: 2.3590676 },
 };
 const DEFAULT_OFFICE = "valois";
+// Le bureau choisi est retenu sur l'appareil (localStorage) ; sans choix valide, Valois/BE.
+const OFFICE_STORAGE_KEY = "snum-office";
+
+function readStoredOffice() {
+  try {
+    const stored = localStorage.getItem(OFFICE_STORAGE_KEY);
+    return stored && OFFICES[stored] ? stored : DEFAULT_OFFICE;
+  } catch {
+    return DEFAULT_OFFICE;
+  }
+}
+
+function storeOffice(key) {
+  try {
+    localStorage.setItem(OFFICE_STORAGE_KEY, key);
+  } catch {
+    // Stockage indisponible (navigation privée stricte) : le choix vaut pour cette visite seulement.
+  }
+}
 
 const FOOD_TYPES = {
   italien: { label: "Italien", icon: "🍝", color: "#9C3B3B" },
@@ -255,7 +274,12 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
   const [distanceFilter, setDistanceFilter] = useState("");
   const [sortBy, setSortBy] = useState("distance"); // distance | rating | recent
   const [mapBounds, setMapBounds] = useState(null);
-  const [officeKey, setOfficeKey] = useState(DEFAULT_OFFICE);
+  const [officeKey, setOfficeKey] = useState(readStoredOffice);
+
+  function chooseOffice(key) {
+    setOfficeKey(key);
+    storeOffice(key);
+  }
   const office = OFFICES[officeKey];
 
   // Distances de marche réelles (IGN), en cache par bureau ET par lieu :
@@ -634,7 +658,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                 key={o.key}
                 type="button"
                 aria-pressed={officeKey === o.key}
-                onClick={() => setOfficeKey(o.key)}
+                onClick={() => chooseOffice(o.key)}
                 style={chipStyle(officeKey === o.key)}
               >
                 {o.label}
