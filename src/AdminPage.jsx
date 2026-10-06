@@ -12,7 +12,7 @@ const thStyle = {
   textAlign: "left",
   fontSize: 12,
   fontWeight: 600,
-  color: "#8A8676",
+  color: "#716D62",
   textTransform: "uppercase",
   padding: "0 12px 8px",
   borderBottom: "1px solid #EDE8DA",
@@ -74,7 +74,7 @@ export default function AdminPage({ currentUserId, onBack }) {
       style={{
         fontFamily: "'Inter', sans-serif",
         background: "#F7F3EC",
-        minHeight: "100dvh",
+        minHeight: "calc(100dvh - var(--footer-h))",
         boxSizing: "border-box",
         padding: "2rem",
         color: "#2B2A28",
@@ -234,7 +234,7 @@ export default function AdminPage({ currentUserId, onBack }) {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ ...tdStyle, textAlign: "center", color: "#8A8676" }}>
+                    <td colSpan={4} style={{ ...tdStyle, textAlign: "center", color: "#716D62" }}>
                       Aucun résultat.
                     </td>
                   </tr>
@@ -245,7 +245,7 @@ export default function AdminPage({ currentUserId, onBack }) {
         </div>
       )}
 
-      <p style={{ fontSize: 12, color: "#8A8676", marginTop: 12 }}>
+      <p style={{ fontSize: 12, color: "#716D62", marginTop: 12 }}>
         {filtered.length} / {users.length} compte{users.length > 1 ? "s" : ""}
       </p>
     </main>

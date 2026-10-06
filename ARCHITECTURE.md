@@ -77,6 +77,8 @@ src/
   Auth.jsx                écrans connexion / inscription (avec nom affiché) / code de confirmation / mot de passe oublié ; exporte aussi les styles partagés et <PasswordInput/> (œil afficher/masquer)
   TeamCalendar.jsx        calendrier (liste / semaine / mois), CRUD événements, bouton notifications
   NotificationSettings.jsx  modale des préférences email
+  Footer.jsx              pied de page discret (mentions légales / confidentialité / accessibilité), sur toutes les vues
+  LegalPages.jsx          les 3 pages légales (chargées à la demande) ; contenu rédigé à la main, à relire si le fonctionnement change
   Onboarding.jsx          tutoriel pas à pas de première connexion (modale accessible, rouvrable via « Tutoriel »)
   AdminPage.jsx           page admin (pas une modale) : tableau des utilisateurs, recherche par email, suppression de compte — remplace tout l'écran, atteinte via le bouton "⚙️ Admin" (visible seulement si `is_admin()` renvoie true)
   FoodPage.jsx            page "Bonnes adresses" : carte (Leaflet, fond IGN) centrée sur le bureau + liste filtrable des recommandations food, atteinte via le bouton "🍽️ Bonnes adresses"
@@ -113,6 +115,16 @@ Recommandations de restaurants/boulangeries/etc. autour du bureau, avec géoloca
 - **Avis repliés par défaut** : pour ne pas polluer la liste quand un lieu accumule des avis, ceux-ci ne s'affichent que si le lieu est déplié (state `expandedSpots`, un `Set` d'ids de lieux, dans `FoodPage.jsx`). Le lien "Voir les X avis ▾" / "Masquer les avis ▴" bascule l'état par lieu ; ouvrir le formulaire d'ajout/édition d'avis (`openReviewForm`) déplie automatiquement le lieu concerné pour que l'utilisateur voie le contexte (avis existants) en même temps que son propre formulaire.
 - **Détection de doublon à la création** : le nom tapé dans "+ Ajouter un lieu" est comparé (insensible à la casse et aux accents, `normalizeName` dans `FoodPage.jsx`) aux lieux déjà existants. Un match affiche une bannière sous le champ nom avec un raccourci direct vers "+ Mon avis" sur le lieu trouvé. Si l'utilisateur soumet quand même, le premier clic sur "Publier" bloque avec un message d'avertissement au lieu de créer la ligne ; un deuxième clic (state `confirmDuplicate`, retombe à `false` dès que le nom retapé change) confirme la création volontaire d'un doublon — utile si deux lieux différents portent réellement le même nom.
 - **Structure de titres (RGAA)** : un seul `h1` ("Bonnes adresses") par page, puis des `h2` pour chaque grande zone — "Ajouter un lieu"/"Modifier le lieu" (déjà visible), et trois `h2` masqués visuellement mais lus par les lecteurs d'écran (`srOnlyStyle` dans `FoodPage.jsx`, technique `clip`/`position: absolute`) : "Filtrer les lieux", "Liste des lieux", "Carte des lieux". Le nom de chaque lieu dans la liste est un `h3` (nested sous "Liste des lieux") plutôt qu'un `<span>` stylé, pour permettre la navigation par titres d'un lecteur d'écran entre les lieux. Les trois `<select>` de filtre (prix/distance/tri) ont chacun un `<label>` masqué associé (`htmlFor`), qu'ils n'avaient pas avant.
+
+### Pied de page et pages légales
+
+`Footer.jsx` (rendu par `App.jsx` sous toutes les vues, y compris la page d'entrée) renvoie vers trois pages **publiques** (accessibles sans connexion), routées par hash dans `App.jsx` (`#/mentions-legales`, `#/confidentialite`, `#/accessibilite` — `LEGAL_ROUTES`), indépendamment de la session. Le bouton « Retour à l'agenda » renvoie à la racine (pas à la page précédente). `LegalPages.jsx` est chargé à la demande (`React.lazy`) pour ne pas alourdir le bundle initial. Les pages hautes laissent la place au pied de page via la variable CSS `--footer-h` (`index.css`) : elles utilisent `minHeight: calc(100dvh - var(--footer-h))` au lieu de `100dvh`.
+
+⚠️ **Le contenu des pages décrit le fonctionnement réel et doit être relu quand il change** : sous-traitants (GitHub, Supabase, Brevo, Gmail, IGN, Nominatim, Google Fonts), données collectées, absence de cookies, durées de conservation, et surtout la liste « Ce qui a été fait / Limites connues » de la déclaration d'accessibilité (par ex. si la fenêtre Notifications gère enfin le focus, retirer la limite correspondante). Identité de l'éditrice et contact : constantes `EDITOR` / `CONTACT` en tête de `LegalPages.jsx`.
+
+Points connus de la politique de confidentialité : (1) les polices Inter/Fraunces sont chargées depuis **Google Fonts** (`@import` dans plusieurs composants), ce qui envoie l'adresse IP des visiteurs à Google — mentionné dans la page ; les héberger localement supprimerait ce transfert ; (2) aucune durée de conservation automatique : pas de purge des comptes inactifs ; (3) supprimer un compte (`admin_delete_user`) ne supprime pas les noms déjà écrits en texte dans `events`/`food_reviews` : suppression/anonymisation manuelle sur demande (c'est ce que dit la page).
+
+La déclaration d'accessibilité indique « **non évalué** » : aucun audit RGAA n'a été fait. Un gris secondaire (`#8A8676`, 3,3:1) a été remplacé par `#716D62` (≥ 4,6:1 sur tous les fonds de l'appli) pour respecter le contraste minimal de 4,5:1.
 
 ### Tutoriel de première connexion
 

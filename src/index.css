@@ -5,6 +5,14 @@ body,
   margin: 0;
 }
 
+body {
+  background: #F7F3EC;
+}
+
 * {
   box-sizing: border-box;
+}
+
+:root {
+  --footer-h: 56px;
 }

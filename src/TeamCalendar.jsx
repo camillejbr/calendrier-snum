@@ -11,7 +11,7 @@ const FoodPage = lazy(() => import("./FoodPage.jsx"));
 const pageFallbackStyle = {
   fontFamily: "'Inter', sans-serif",
   background: "#F7F3EC",
-  minHeight: "100dvh",
+  minHeight: "calc(100dvh - var(--footer-h))",
   boxSizing: "border-box",
   padding: "3rem",
   textAlign: "center",
@@ -289,7 +289,7 @@ export default function TeamCalendar({ user, onSignOut }) {
         style={{
           fontFamily: "'Inter', sans-serif",
           background: "#F7F3EC",
-          minHeight: "100dvh",
+          minHeight: "calc(100dvh - var(--footer-h))",
           boxSizing: "border-box",
           padding: "3rem",
           textAlign: "center",
@@ -534,7 +534,7 @@ export default function TeamCalendar({ user, onSignOut }) {
       style={{
         fontFamily: "'Inter', sans-serif",
         background: "#F7F3EC",
-        minHeight: "100dvh",
+        minHeight: "calc(100dvh - var(--footer-h))",
         boxSizing: "border-box",
         padding: "2rem",
         color: "#2B2A28",
@@ -908,7 +908,7 @@ export default function TeamCalendar({ user, onSignOut }) {
               return (
                 <div key={iso}>
                   <div className="week-day-header" style={{ marginBottom: 8 }}>
-                    <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: "#8A8676", textTransform: "uppercase" }}>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: "#716D62", textTransform: "uppercase" }}>
                       {WEEKDAY_LABELS[(day.getDay() + 6) % 7]}
                     </p>
                     <span
@@ -969,7 +969,7 @@ export default function TeamCalendar({ user, onSignOut }) {
             }}
           >
             {WEEKDAY_LABELS.map((w) => (
-              <div key={w} style={{ background: "#F7F3EC", padding: "6px 4px", fontSize: 11, fontWeight: 600, color: "#8A8676", textAlign: "center" }}>
+              <div key={w} style={{ background: "#F7F3EC", padding: "6px 4px", fontSize: 11, fontWeight: 600, color: "#716D62", textAlign: "center" }}>
                 {w}
               </div>
             ))}
@@ -1036,7 +1036,7 @@ export default function TeamCalendar({ user, onSignOut }) {
                       );
                     })}
                     {dayEvents.length > 2 && (
-                      <span style={{ fontSize: 10, color: "#8A8676" }}>+{dayEvents.length - 2}</span>
+                      <span style={{ fontSize: 10, color: "#716D62" }}>+{dayEvents.length - 2}</span>
                     )}
                   </div>
                 </button>

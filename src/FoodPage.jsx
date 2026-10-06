@@ -558,7 +558,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       style={{
         fontFamily: "'Inter', sans-serif",
         background: "#F7F3EC",
-        minHeight: "100dvh",
+        minHeight: "calc(100dvh - var(--footer-h))",
         boxSizing: "border-box",
         padding: "2rem",
         color: "#2B2A28",
@@ -681,7 +681,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                   style={inputStyle}
                 />
                 {suggestLoading && (
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#8A8676" }}>Recherche…</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#716D62" }}>Recherche…</p>
                 )}
                 {suggestions.length > 0 && (
                   <ul className="address-suggestions">
@@ -803,7 +803,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
 
           {!loading && (
             <>
-              <p style={{ fontSize: 12, color: "#8A8676", margin: "0 0 12px" }}>
+              <p style={{ fontSize: 12, color: "#716D62", margin: "0 0 12px" }}>
                 {visibleInList.length} lieu{visibleInList.length > 1 ? "x" : ""}
                 {visibleInList.length !== filtered.length && ` visible${visibleInList.length > 1 ? "s" : ""} sur la carte (sur ${filtered.length} au total)`}
               </p>
@@ -834,10 +834,10 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                         {s.reviews.length > 0 ? (
                           <>
                             <Stars value={s.avgRating} />
-                            <span style={{ fontSize: 12, color: "#8A8676" }}>({s.avgRating.toFixed(1)})</span>
+                            <span style={{ fontSize: 12, color: "#716D62" }}>({s.avgRating.toFixed(1)})</span>
                           </>
                         ) : (
-                          <span style={{ fontSize: 12, color: "#8A8676" }}>Pas encore d'avis</span>
+                          <span style={{ fontSize: 12, color: "#716D62" }}>Pas encore d'avis</span>
                         )}
                       </div>
                       <p style={{ margin: 0, fontSize: 13, color: "#6B6862" }}>
@@ -900,7 +900,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               <span style={{ fontSize: 13, fontWeight: 500 }}>{r.host}</span>
                               <Stars value={r.rating} />
-                              <span style={{ fontSize: 12, color: "#8A8676" }}>{r.price} €</span>
+                              <span style={{ fontSize: 12, color: "#716D62" }}>{r.price} €</span>
                             </div>
                             {r.comment && <p style={{ margin: "4px 0 0", fontSize: 13, color: "#4A4740" }}>{r.comment}</p>}
                           </div>

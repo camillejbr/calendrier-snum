@@ -161,7 +161,7 @@ export default function Onboarding({ name, onDone }) {
           textAlign: "center",
         }}
       >
-        <p style={{ margin: "0 0 12px", fontSize: 12, color: "#8A8676" }} aria-live="polite">
+        <p style={{ margin: "0 0 12px", fontSize: 12, color: "#716D62" }} aria-live="polite">
           Étape {step + 1} sur {STEPS.length}
         </p>
         <div style={{ fontSize: 40, marginBottom: 8 }} aria-hidden="true">

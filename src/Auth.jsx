@@ -18,7 +18,7 @@ function passwordError(pw) {
 export const wrapStyle = {
   fontFamily: "'Inter', sans-serif",
   background: "#F7F3EC",
-  minHeight: "100dvh",
+  minHeight: "calc(100dvh - var(--footer-h))",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "center",
@@ -439,7 +439,7 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
               aria-describedby="signup-display-name-help"
               style={inputStyle}
             />
-            <p id="signup-display-name-help" style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
+            <p id="signup-display-name-help" style={{ margin: "-8px 0 12px", fontSize: 12, color: "#716D62", textAlign: "left" }}>
               Le nom affiché aux autres, ex : Camille J
             </p>
             <label htmlFor="signup-password" style={labelStyle}>Mot de passe</label>
@@ -449,7 +449,7 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
+            <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#716D62", textAlign: "left" }}>
               12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.
             </p>
             <label htmlFor="signup-password-confirm" style={labelStyle}>Confirmer le mot de passe</label>
@@ -531,7 +531,7 @@ export default function Auth({ accessCode, onAccessCodeInvalid }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#8A8676", textAlign: "left" }}>
+            <p style={{ margin: "-8px 0 12px", fontSize: 12, color: "#716D62", textAlign: "left" }}>
               12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.
             </p>
             <label htmlFor="reset-password-confirm" style={labelStyle}>Confirmer le mot de passe</label>
