@@ -37,6 +37,7 @@ const FOOD_TYPES = {
   oriental: { label: "Oriental", icon: "🫓", color: "#C97A2B" },
   boulangerie: { label: "Boulangerie", icon: "🥖", color: "#B8923F" },
   healthy: { label: "Healthy", icon: "🥗", color: "#4A7A4A" },
+  coffee: { label: "Coffee shop", icon: "☕", color: "#4A6FA5" },
 };
 
 // Fallback purely defensive, for legacy data that predates the current type list.
