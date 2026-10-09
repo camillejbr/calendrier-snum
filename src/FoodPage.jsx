@@ -917,6 +917,11 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
                           + Mon avis
                         </button>
                       )}
+                      {myReview && !addingReviewHere && (
+                        <button onClick={() => openReviewForm(s.id, myReview)} style={smallButtonStyle()}>
+                          Modifier mon avis
+                        </button>
+                      )}
                       {canEditSpot && (
                         confirmingSpotDelete ? (
                           <span style={{ display: "flex", gap: 6, alignItems: "center" }}>

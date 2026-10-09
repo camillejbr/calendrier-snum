@@ -27,7 +27,7 @@ const STEPS = [
     body: () => (
       <>
         Clique sur <strong>+ Nouvel événement</strong>, choisis un type, une date, une heure et un lieu.
-        Tu peux aussi limiter le nombre de places. Il est visible tout de suite par tout le monde.
+        Tu peux aussi limiter le nombre de places. Il est visible tout de suite par tout le monde, et tu peux le <strong>Modifier</strong> à tout moment.
       </>
     ),
   },

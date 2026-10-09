@@ -25,6 +25,17 @@ const TYPES = {
   repas: { label: "Repas", icon: "🍽️", color: "#C97A2B", bg: "#FBF0E3" },
 };
 
+const EMPTY_FORM = {
+  title: "",
+  type: "verre",
+  date: "",
+  time: "",
+  location: "",
+  description: "",
+  maxAttendees: "",
+  price: "",
+};
+
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 function rowToEvent(row) {
@@ -39,6 +50,7 @@ function rowToEvent(row) {
     maxAttendees: row.max_attendees,
     price: row.price,
     host: row.host,
+    hostId: row.host_id,
     attendees: row.attendees || [],
   };
 }
@@ -117,16 +129,9 @@ export default function TeamCalendar({ user, onSignOut }) {
   const [view, setView] = useState("liste"); // liste | semaine | mois
   const [refDate, setRefDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => toISO(new Date()));
-  const [form, setForm] = useState({
-    title: "",
-    type: "verre",
-    date: "",
-    time: "",
-    location: "",
-    description: "",
-    maxAttendees: "",
-    price: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
+  // null = création ; sinon id de l'événement en cours de modification (le formulaire sert aux deux).
+  const [editingEventId, setEditingEventId] = useState(null);
   const [formErr, setFormErr] = useState("");
 
   const loadEvents = useCallback(async () => {
@@ -195,31 +200,88 @@ export default function TeamCalendar({ user, onSignOut }) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  async function addEvent() {
+  function toggleForm() {
+    if (showForm) {
+      closeForm();
+      return;
+    }
+    setEditingEventId(null);
+    setForm(EMPTY_FORM);
+    setFormErr("");
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingEventId(null);
+    setForm(EMPTY_FORM);
+    setFormErr("");
+  }
+
+  function openEditForm(ev) {
+    setEditingEventId(ev.id);
+    setForm({
+      title: ev.title,
+      type: ev.type,
+      date: ev.date,
+      time: ev.time.slice(0, 5),
+      location: ev.location,
+      description: ev.description,
+      maxAttendees: ev.maxAttendees ? String(ev.maxAttendees) : "",
+      price: ev.price != null ? String(ev.price) : "",
+    });
+    setFormErr("");
+    setShowForm(true);
+    setTimeout(() => {
+      const title = document.getElementById("f-title");
+      if (title) {
+        title.scrollIntoView({ block: "center" });
+        title.focus();
+      }
+    }, 0);
+  }
+
+  async function saveEvent() {
     if (!form.title.trim() || !form.date || !form.time) {
       setFormErr("Ajoute au moins un titre, une date et une heure.");
       return;
     }
-    const { error } = await supabase.from("events").insert({
+    const maxAttendees = form.maxAttendees ? parseInt(form.maxAttendees, 10) : null;
+    const fields = {
       title: form.title.trim(),
       type: form.type,
       date: form.date,
       time: form.time,
       location: form.location.trim() || null,
       description: form.description.trim() || null,
-      max_attendees: form.maxAttendees ? parseInt(form.maxAttendees, 10) : null,
+      max_attendees: maxAttendees,
       price: form.price.trim() ? form.price.trim() : null,
-      host: profileName,
-      attendees: [profileName],
-    });
-    if (error) {
-      setSaveError("La création n'a pas fonctionné. Réessaie.");
-      return;
+    };
+
+    if (editingEventId) {
+      const current = events.find((e) => e.id === editingEventId);
+      if (maxAttendees && current && maxAttendees < current.attendees.length) {
+        setFormErr(`Il y a déjà ${current.attendees.length} inscrit(e)s : le nombre de places ne peut pas être inférieur.`);
+        return;
+      }
+      const { data, error } = await supabase.from("events").update(fields).eq("id", editingEventId).select();
+      if (error || !data || data.length === 0) {
+        setSaveError("La modification n'a pas fonctionné (l'événement n'existe peut-être plus). Réessaie.");
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("events").insert({
+        ...fields,
+        host: profileName,
+        attendees: [profileName],
+      });
+      if (error) {
+        setSaveError("La création n'a pas fonctionné. Réessaie.");
+        return;
+      }
     }
     setSaveError("");
-    setForm({ title: "", type: "verre", date: "", time: "", location: "", description: "", maxAttendees: "", price: "" });
-    setFormErr("");
-    setShowForm(false);
+    closeForm();
     loadEvents();
   }
 
@@ -330,7 +392,7 @@ export default function TeamCalendar({ user, onSignOut }) {
   function renderEventCard(ev) {
     const t = TYPES[ev.type] || TYPES.verre;
     const going = ev.attendees.includes(profileName);
-    const isHost = ev.host === profileName;
+    const isOwner = ev.hostId === user.id;
     const isFull = ev.maxAttendees && ev.attendees.length >= ev.maxAttendees && !going;
     return (
       <div
@@ -422,7 +484,7 @@ export default function TeamCalendar({ user, onSignOut }) {
           >
             {isFull ? "Complet" : going ? "Je me désiste" : "Je viens"}
           </button>
-          {(isHost || isAdmin) && (
+          {(isOwner || isAdmin) && (
             confirmDeleteId === ev.id ? (
               <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                 <span style={{ fontSize: 12, color: "#9C3B3B" }}>Supprimer ?</span>
@@ -459,6 +521,23 @@ export default function TeamCalendar({ user, onSignOut }) {
                 </button>
               </span>
             ) : (
+              <>
+              <button
+                onClick={() => openEditForm(ev)}
+                aria-label={`Modifier l'événement ${ev.title}`}
+                style={{
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  background: "transparent",
+                  color: "#6B6862",
+                  border: "1px solid #D8D3C6",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                Modifier
+              </button>
               <button
                 onClick={() => setConfirmDeleteId(ev.id)}
                 aria-label={`Supprimer l'événement ${ev.title}`}
@@ -474,6 +553,7 @@ export default function TeamCalendar({ user, onSignOut }) {
               >
                 <span aria-hidden="true">✕</span>
               </button>
+              </>
             )
           )}
         </div>
@@ -687,7 +767,7 @@ export default function TeamCalendar({ user, onSignOut }) {
             🔔 Notifications
           </button>
           <button
-            onClick={() => setShowForm((s) => !s)}
+            onClick={toggleForm}
             aria-expanded={showForm}
             style={{
               height: 40,
@@ -750,6 +830,9 @@ export default function TeamCalendar({ user, onSignOut }) {
             marginBottom: 28,
           }}
         >
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 18, margin: "0 0 14px" }}>
+            {editingEventId ? "Modifier l'événement" : "Nouvel événement"}
+          </h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div style={{ gridColumn: "1 / -1" }}>
               <label htmlFor="f-title" style={labelStyle}>Titre</label>
@@ -844,22 +927,39 @@ export default function TeamCalendar({ user, onSignOut }) {
           {formErr && (
             <p role="alert" style={{ color: "#9C3B3B", fontSize: 13, margin: "0 0 12px" }}>{formErr}</p>
           )}
-          <button
-            onClick={addEvent}
-            style={{
-              padding: "9px 16px",
-              fontSize: 14,
-              fontWeight: 500,
-              background: "#2B2A28",
-              color: "#F7F3EC",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontFamily: "'Inter', sans-serif",
-            }}
-          >
-            Créer l'événement
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={saveEvent}
+              style={{
+                padding: "9px 16px",
+                fontSize: 14,
+                fontWeight: 500,
+                background: "#2B2A28",
+                color: "#F7F3EC",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              {editingEventId ? "Enregistrer les modifications" : "Créer l'événement"}
+            </button>
+            <button
+              onClick={closeForm}
+              style={{
+                padding: "9px 16px",
+                fontSize: 14,
+                background: "transparent",
+                color: "#6B6862",
+                border: "1px solid #D8D3C6",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              Annuler
+            </button>
+          </div>
         </div>
       )}
 
