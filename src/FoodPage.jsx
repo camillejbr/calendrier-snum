@@ -428,6 +428,15 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
       setPlaceForm(emptyPlaceForm);
       setGeoResult(null);
     }
+    // Le formulaire s'affiche en haut de la page : on y amène l'écran et le curseur, sinon
+    // cliquer « Modifier le lieu » plus bas dans la liste ne montre rien.
+    setTimeout(() => {
+      const name = document.getElementById("fs-name");
+      if (name) {
+        name.scrollIntoView({ block: "center" });
+        name.focus();
+      }
+    }, 0);
   }
 
   function selectSuggestion(s) {
@@ -509,9 +518,16 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
         return;
       }
     }
+    const editedId = editingSpotId;
     setShowPlaceForm(false);
     setEditingSpotId(null);
-    loadData();
+    await loadData();
+    if (editedId) {
+      setTimeout(() => {
+        const card = document.getElementById(`spot-${editedId}`);
+        if (card) card.scrollIntoView({ block: "center" });
+      }, 0);
+    }
   }
 
   async function deleteSpot(id) {
@@ -861,6 +877,7 @@ export default function FoodPage({ user, profileName, isAdmin, onBack }) {
               return (
                 <div
                   key={s.id}
+                  id={`spot-${s.id}`}
                   style={{
                     background: "#FFFFFF",
                     borderLeft: `4px solid ${t.color}`,
